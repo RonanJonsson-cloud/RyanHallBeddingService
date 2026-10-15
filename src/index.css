@@ -338,3 +338,43 @@ input {
   color: var(--text);
   font-weight: 600;
 }
+
+a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.share {
+  margin-top: 24px;
+}
+
+.share .hint {
+  margin: 0;
+}
+
+/* Always black on white, even in dark mode, so phones can scan it. */
+.qr {
+  align-self: center;
+  padding: 8px;
+  border-radius: 8px;
+  background: #ffffff;
+  line-height: 0;
+}
+
+.share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.share-actions > .button {
+  flex: 1 1 auto;
+}
+
+.note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.875rem;
+}

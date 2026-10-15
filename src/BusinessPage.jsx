@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import BreaksEditor, { defaultBreak } from './BreaksEditor.jsx'
+import SharePanel from './SharePanel.jsx'
 import { DAYS, formatRange, rangeError, sortRanges } from './scheduling.js'
 
 let nextId = 1
@@ -47,7 +48,7 @@ function AddBreakForm({ range, onSave, onCancel }) {
   )
 }
 
-function BusinessPage({ hours, onChange }) {
+function BusinessPage({ name, onNameChange, hours, onChange }) {
   const [day, setDay] = useState('Monday')
   const [start, setStart] = useState('09:00')
   const [end, setEnd] = useState('17:00')
@@ -77,113 +78,129 @@ function BusinessPage({ hours, onChange }) {
   }
 
   return (
-    <section>
-      <h2>Your available hours</h2>
-      <p className="hint">
-        Add each day and time range when you can take bookings. Use a busy time to block out
-        lunch or anything else in the middle of the day.
-      </p>
-
-      <form className="card" onSubmit={handleAdd}>
+    <>
+      <section className="card">
         <label className="field">
-          Day
-          <select value={day} onChange={(e) => setDay(e.target.value)}>
-            {DAYS.map((d) => (
-              <option key={d}>{d}</option>
-            ))}
-          </select>
+          Business name
+          <input
+            type="text"
+            value={name}
+            maxLength={80}
+            onChange={(e) => onNameChange(e.target.value)}
+          />
         </label>
-        <div className="field-row">
+      </section>
+
+      <section>
+        <h2>Your available hours</h2>
+        <p className="hint">
+          Add each day and time range when you can take bookings. Use a busy time to block out
+          lunch or anything else in the middle of the day.
+        </p>
+
+        <form className="card" onSubmit={handleAdd}>
           <label className="field">
-            Start time
-            <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+            Day
+            <select value={day} onChange={(e) => setDay(e.target.value)}>
+              {DAYS.map((d) => (
+                <option key={d}>{d}</option>
+              ))}
+            </select>
           </label>
-          <label className="field">
-            End time
-            <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
-          </label>
-        </div>
-        <BreaksEditor breaks={breaks} onChange={setBreaks} rangeStart={start} rangeEnd={end} />
-        {error && (
-          <p className="error" role="alert">
-            {error}
-          </p>
+          <div className="field-row">
+            <label className="field">
+              Start time
+              <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+            </label>
+            <label className="field">
+              End time
+              <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            </label>
+          </div>
+          <BreaksEditor breaks={breaks} onChange={setBreaks} rangeStart={start} rangeEnd={end} />
+          {error && (
+            <p className="error" role="alert">
+              {error}
+            </p>
+          )}
+          <button type="submit" className="button primary">
+            Add hours
+          </button>
+        </form>
+
+        {hours.length === 0 ? (
+          <p className="empty">No hours added yet.</p>
+        ) : (
+          <ul className="hours-list" aria-label="Available hours">
+            {sortRanges(hours).map((range) => {
+              const label = `${range.day} ${formatRange(range)}`
+              return (
+                <li key={range.id} className="hours-item">
+                  <div className="hours-row">
+                    <span>
+                      <strong>{range.day}</strong> {formatRange(range)}
+                    </span>
+                    <button
+                      type="button"
+                      className="button small"
+                      onClick={() => handleRemove(range.id)}
+                      aria-label={`Remove ${label}`}
+                    >
+                      Remove
+                    </button>
+                  </div>
+
+                  {range.breaks.length > 0 && (
+                    <ul className="busy-list">
+                      {range.breaks.map((b) => (
+                        <li key={b.id} className="busy-item">
+                          <span>Busy {formatRange(b)}</span>
+                          <button
+                            type="button"
+                            className="button link small"
+                            aria-label={`Remove busy time ${formatRange(b)} from ${label}`}
+                            onClick={() =>
+                              updateBreaks(
+                                range.id,
+                                range.breaks.filter((other) => other.id !== b.id),
+                              )
+                            }
+                          >
+                            ✕
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {addingBreakTo === range.id ? (
+                    <AddBreakForm
+                      range={range}
+                      onSave={(newBreaks) => {
+                        updateBreaks(range.id, [...range.breaks, ...newBreaks])
+                        setAddingBreakTo(null)
+                      }}
+                      onCancel={() => setAddingBreakTo(null)}
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      className="button link small"
+                      aria-label={`Add busy time to ${label}`}
+                      onClick={() => setAddingBreakTo(range.id)}
+                    >
+                      + Add busy time
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
         )}
-        <button type="submit" className="button primary">
-          Add hours
-        </button>
-      </form>
+      </section>
 
-      {hours.length === 0 ? (
-        <p className="empty">No hours added yet.</p>
-      ) : (
-        <ul className="hours-list" aria-label="Available hours">
-          {sortRanges(hours).map((range) => {
-            const label = `${range.day} ${formatRange(range)}`
-            return (
-              <li key={range.id} className="hours-item">
-                <div className="hours-row">
-                  <span>
-                    <strong>{range.day}</strong> {formatRange(range)}
-                  </span>
-                  <button
-                    type="button"
-                    className="button small"
-                    onClick={() => handleRemove(range.id)}
-                    aria-label={`Remove ${label}`}
-                  >
-                    Remove
-                  </button>
-                </div>
-
-                {range.breaks.length > 0 && (
-                  <ul className="busy-list">
-                    {range.breaks.map((b) => (
-                      <li key={b.id} className="busy-item">
-                        <span>Busy {formatRange(b)}</span>
-                        <button
-                          type="button"
-                          className="button link small"
-                          aria-label={`Remove busy time ${formatRange(b)} from ${label}`}
-                          onClick={() =>
-                            updateBreaks(
-                              range.id,
-                              range.breaks.filter((other) => other.id !== b.id),
-                            )
-                          }
-                        >
-                          ✕
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-
-                {addingBreakTo === range.id ? (
-                  <AddBreakForm
-                    range={range}
-                    onSave={(newBreaks) => {
-                      updateBreaks(range.id, [...range.breaks, ...newBreaks])
-                      setAddingBreakTo(null)
-                    }}
-                    onCancel={() => setAddingBreakTo(null)}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    className="button link small"
-                    aria-label={`Add busy time to ${label}`}
-                    onClick={() => setAddingBreakTo(range.id)}
-                  >
-                    + Add busy time
-                  </button>
-                )}
-              </li>
-            )
-          })}
-        </ul>
-      )}
-    </section>
+      <SharePanel name={name} hours={hours} />
+    </>
   )
 }
 
