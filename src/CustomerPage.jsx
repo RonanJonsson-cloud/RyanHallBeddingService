@@ -6,7 +6,10 @@ import {
   DEFAULT_APPOINTMENT_MINUTES,
   DEFAULT_TURNAROUND_MINUTES,
   PAIRED_SERVICE,
+  addDays,
   availableServices,
+  dateAfterOpenTime,
+  daysBetween,
   formatDate,
   formatDuration,
   formatRange,
@@ -47,6 +50,9 @@ const SERVICE_NAMES = {
 
 // "To book a pickup, please select available dates."
 function datesPrompt(service) {
+  if (service === PAIRED_SERVICE) {
+    return 'To book a drop-off and pickup, first select available dates for your drop-off.'
+  }
   return `To book ${SERVICE_NAMES[service]}, please select available dates.`
 }
 
@@ -170,6 +176,8 @@ function CustomerPage({ business }) {
     turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES,
   } = business
   const services = availableServices({ offerAppointments, offerHandoffs, handoffsTogether })
+  // Whether any weekday has no hours (those days don't count toward the gap).
+  const closedDays = new Set(businessHours.map((range) => range.day)).size < 7
 
   const [initial] = useState(() => startingChat(services, businessHours.length > 0))
   const [messages, setMessages] = useState(initial.messages)
@@ -179,7 +187,10 @@ function CustomerPage({ business }) {
   const [dateIndex, setDateIndex] = useState(0)
   const [customerHours, setCustomerHours] = useState([])
   const [slots, setSlots] = useState([])
-  // For a paired booking, the drop-off chosen before picking a pickup.
+  // For a paired booking: the customer's drop-off availability (set once
+  // they move on to giving pickup availability), then the drop-off chosen
+  // before picking a pickup.
+  const [dropOffHours, setDropOffHours] = useState(null)
   const [dropOff, setDropOff] = useState(null)
   // The booking summary, held while the customer adds any comments.
   const [booked, setBooked] = useState('')
@@ -231,17 +242,37 @@ function CustomerPage({ business }) {
       return
     }
 
+    // Paired booking: drop-off availability is done; now ask for the pickup's.
+    if (service === PAIRED_SERVICE && !dropOffHours) {
+      setDropOffHours(updated)
+      setCustomerHours([])
+      setDates([])
+      setDateIndex(0)
+      say({
+        from: 'bot',
+        text: `Now select available dates for your pickup. It must be at least ${formatDuration(
+          turnaroundMinutes,
+        )} after your drop-off${closedDays ? ", not counting days we're closed" : ''}.`,
+      })
+      setStep('dates')
+      return
+    }
+
     // Times earlier today have already passed.
     const notBefore = nowOnTimeline()
 
     if (service === PAIRED_SERVICE) {
-      const dropOffs = suggestDropOffs(businessHours, updated, { turnaroundMinutes, notBefore })
+      const dropOffs = suggestDropOffs(businessHours, dropOffHours, {
+        pickupHours: updated,
+        turnaroundMinutes,
+        notBefore,
+      })
       if (dropOffs.length === 0) {
         say({
           from: 'bot',
           text: `Sorry, I couldn't fit a drop-off and a pickup at least ${formatDuration(
             turnaroundMinutes,
-          )} apart into the business's hours. Try adding more dates or times.`,
+          )} apart into those times and the business's hours. Try different dates or times.`,
         })
         setStep('done')
         return
@@ -328,8 +359,28 @@ function CustomerPage({ business }) {
     setDateIndex(0)
     setCustomerHours([])
     setSlots([])
+    setDropOffHours(null)
     setDropOff(null)
     setBooked('')
+  }
+
+  // While picking pickup dates, grey out dates too soon after the earliest
+  // drop-off, and show extra days so a long gap still fits. Both count only
+  // days the business is open, like the gap itself.
+  const today = toDateString(new Date())
+  let calendarStart = today
+  let calendarDays = BOOKING_WINDOW_DAYS
+  if (service === PAIRED_SERVICE && dropOffHours !== null) {
+    const first = dropOffHours[0]
+    const earliestPickup = dateAfterOpenTime(first.date, first.start, turnaroundMinutes, businessHours)
+    const lastPickup = dateAfterOpenTime(
+      addDays(today, BOOKING_WINDOW_DAYS - 1),
+      '23:59',
+      turnaroundMinutes,
+      businessHours,
+    )
+    if (earliestPickup > today) calendarStart = earliestPickup
+    if (lastPickup) calendarDays = daysBetween(today, lastPickup) + 1
   }
 
   return (
@@ -363,17 +414,12 @@ function CustomerPage({ business }) {
         {step === 'dates' && (
           <>
             <DatePicker
-              today={toDateString(new Date())}
+              today={today}
               openDays={new Set(businessHours.map((range) => range.day))}
               selected={dates}
               onToggle={toggleDate}
-              // A paired booking's pickup can land up to the turnaround after
-              // the last bookable drop-off date, so show that much extra.
-              windowDays={
-                service === PAIRED_SERVICE
-                  ? BOOKING_WINDOW_DAYS + Math.ceil(turnaroundMinutes / 1440)
-                  : BOOKING_WINDOW_DAYS
-              }
+              firstDate={calendarStart}
+              windowDays={calendarDays}
             />
             <button
               type="button"

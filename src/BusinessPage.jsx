@@ -105,8 +105,8 @@ function TurnaroundInput({ minutes, onChange }) {
         </p>
       ) : (
         <p className="note">
-          Pickups will be at least {formatDuration(minutes)} after the drop-off. Up to{' '}
-          {MAX_TURNAROUND_DAYS} days.
+          Pickups will be at least {formatDuration(minutes)} after the drop-off, not counting days
+          you're closed. Up to {MAX_TURNAROUND_DAYS} days.
         </p>
       )}
     </fieldset>

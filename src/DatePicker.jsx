@@ -10,11 +10,19 @@ const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ]
 
-// A Monday-first calendar from today through the next `windowDays` days.
-// Dates the business is closed (or that have passed) can't be picked.
-function DatePicker({ today, openDays, selected, onToggle, windowDays = BOOKING_WINDOW_DAYS }) {
+// A Monday-first calendar from `firstDate` (today unless given) through
+// `windowDays` days after today. Dates outside that, or when the business is
+// closed, can't be picked.
+function DatePicker({
+  today,
+  firstDate = today,
+  openDays,
+  selected,
+  onToggle,
+  windowDays = BOOKING_WINDOW_DAYS,
+}) {
   const lastDate = addDays(today, windowDays - 1)
-  const firstShown = addDays(today, -HEADINGS.indexOf(weekdayOf(today).slice(0, 3)))
+  const firstShown = addDays(firstDate, -HEADINGS.indexOf(weekdayOf(firstDate).slice(0, 3)))
 
   const dates = []
   for (let date = firstShown; date <= lastDate; date = addDays(date, 1)) dates.push(date)
@@ -29,7 +37,7 @@ function DatePicker({ today, openDays, selected, onToggle, windowDays = BOOKING_
       ))}
       {dates.map((date, index) => {
         const [, month, day] = date.split('-').map(Number)
-        const inWindow = date >= today && date <= lastDate
+        const inWindow = date >= firstDate && date <= lastDate
         const open = inWindow && openDays.has(weekdayOf(date))
         // Show the month on the first cell and whenever a new month starts.
         const showMonth = index === 0 || day === 1

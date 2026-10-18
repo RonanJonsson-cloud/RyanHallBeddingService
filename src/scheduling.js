@@ -169,6 +169,46 @@ export function nowOnTimeline(now = new Date()) {
   return timelineMinutes(toDateString(now), toTime(now.getHours() * 60 + now.getMinutes()))
 }
 
+// The "YYYY-MM-DD" date a timelineMinutes value falls on.
+function dateOnTimeline(minutes) {
+  const d = new Date(Math.floor(minutes / 1440) * 24 * 60 * 60000)
+  const month = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const day = String(d.getUTCDate()).padStart(2, '0')
+  return `${d.getUTCFullYear()}-${month}-${day}`
+}
+
+// Whole days from one date to another: Oct 19 -> Oct 21 is 2.
+export function daysBetween(from, to) {
+  return (timelineMinutes(to, '00:00') - timelineMinutes(from, '00:00')) / 1440
+}
+
+// Adds `minutes` to a timeline time, counting only days the business is
+// open (has hours): a closed day adds nothing, so a 2-day gap from Friday
+// with weekends closed ends on Tuesday. Infinity if it's never open.
+export function addOpenTime(start, minutes, businessHours) {
+  const openDays = new Set(businessHours.map((range) => range.day))
+  if (openDays.size === 0) return Infinity
+  let time = start
+  let remaining = minutes
+  for (;;) {
+    const dayNumber = Math.floor(time / 1440)
+    const dayEnd = (dayNumber + 1) * 1440
+    // Day 0 of the timeline, January 1, 1970, was a Thursday.
+    if (openDays.has(DAYS[(dayNumber + 3) % 7])) {
+      if (time + remaining <= dayEnd) return time + remaining
+      remaining -= dayEnd - time
+    }
+    time = dayEnd
+  }
+}
+
+// The date a gap of open time ends on, starting from `date` at `time`.
+// null if the business is never open.
+export function dateAfterOpenTime(date, time, minutes, businessHours) {
+  const end = addOpenTime(timelineMinutes(date, time), minutes, businessHours)
+  return end === Infinity ? null : dateOnTimeline(end)
+}
+
 // ---- Matching ----
 
 // A range minus its breaks, as the free windows left over. Keeps the
@@ -276,18 +316,28 @@ export function suggestSlots(
 }
 
 // Drop-off times for a paired booking: only those that leave room for a
-// pickup at least `turnaroundMinutes` later.
+// pickup at least `turnaroundMinutes` later. The customer can give separate
+// availability for the pickup (`pickupHours`); otherwise the drop-off
+// availability is used for both.
 export function suggestDropOffs(
   businessHours,
   customerHours,
-  { turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES, max = 3, notBefore = -Infinity } = {},
+  {
+    pickupHours = customerHours,
+    turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES,
+    max = 3,
+    notBefore = -Infinity,
+  } = {},
 ) {
   const slots = candidateSlots(businessHours, customerHours, HANDOFF_MINUTES, notBefore)
-  if (slots.length === 0) return []
-  const last = slots[slots.length - 1]
-  const lastStart = timelineMinutes(last.date, last.start)
+  const pickups = candidateSlots(businessHours, pickupHours, HANDOFF_MINUTES, notBefore)
+  if (slots.length === 0 || pickups.length === 0) return []
+  const last = pickups[pickups.length - 1]
+  const lastPickupStart = timelineMinutes(last.date, last.start)
   const withRoom = slots.filter(
-    (slot) => timelineMinutes(slot.date, slot.end) + turnaroundMinutes <= lastStart,
+    (slot) =>
+      addOpenTime(timelineMinutes(slot.date, slot.end), turnaroundMinutes, businessHours) <=
+      lastPickupStart,
   )
   return spreadOverEarliestDate(withRoom, max)
 }
@@ -303,6 +353,10 @@ export function suggestPickups(
   return suggestSlots(businessHours, customerHours, {
     minutes: HANDOFF_MINUTES,
     max,
-    notBefore: timelineMinutes(dropOff.date, dropOff.end) + turnaroundMinutes,
+    notBefore: addOpenTime(
+      timelineMinutes(dropOff.date, dropOff.end),
+      turnaroundMinutes,
+      businessHours,
+    ),
   })
 }

@@ -176,7 +176,9 @@ describe('Pickup and drop-off settings', () => {
     fireEvent.change(days, { target: { value: '1' } })
     fireEvent.change(hours, { target: { value: '6' } })
     expect(
-      screen.getByText(/Pickups will be at least 1 day 6 hours after the drop-off\./),
+      screen.getByText(
+        /Pickups will be at least 1 day 6 hours after the drop-off, not counting days you're closed\./,
+      ),
     ).toBeInTheDocument()
 
     // Boxes can't go past their limits.
@@ -400,46 +402,88 @@ describe('Customer page: drop-off and pickup together', () => {
     offerHandoffs: true,
     handoffsTogether: true,
     turnaroundMinutes: 180,
-    hours: [{ day: 'Monday', start: '09:00', end: '17:00', breaks: [] }],
+    hours: [
+      { day: 'Monday', start: '09:00', end: '17:00', breaks: [] },
+      { day: 'Wednesday', start: '09:00', end: '17:00', breaks: [] },
+    ],
   }
 
-  it('makes the customer book a drop-off and then a later pickup', () => {
+  function enterTimes(from, to) {
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: from } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: to } })
+    click('Send')
+  }
+
+  it('asks for drop-off and pickup availability separately', () => {
     renderCustomerLink(business)
     expect(screen.queryByRole('button', { name: 'Pickup' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Drop-off' })).not.toBeInTheDocument()
 
     click('Drop-off & pickup')
     expect(
-      screen.getByText('To book a drop-off and pickup, please select available dates.'),
+      screen.getByText(
+        'To book a drop-off and pickup, first select available dates for your drop-off.',
+      ),
     ).toBeInTheDocument()
+
+    // Drop-off: Monday morning only.
     click('Monday, October 19')
     click('Next')
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
-    fireEvent.change(screen.getByLabelText('To'), { target: { value: '17:00' } })
-    click('Send')
+    enterTimes('09:00', '12:00')
+
+    // Pickup: Monday afternoon or next Monday morning.
+    expect(
+      screen.getByText(
+        "Now select available dates for your pickup. It must be at least 3 hours after your drop-off, not counting days we're closed.",
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday, October 19' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+    click('Monday, October 19')
+    click('Monday, October 26')
+    click('Next')
+    enterTimes('14:00', '17:00')
+    enterTimes('09:00', '12:00')
 
     expect(screen.getByText(/^First, your drop-off\. The earliest day that works is Mon Oct 19/))
       .toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mon Oct 19 9:00 AM – 9:05 AM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Mon Oct 19 11:15 AM – 11:20 AM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Mon Oct 19 1:30 PM – 1:35 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 10:30 AM – 10:35 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 11:45 AM – 11:50 AM' })).toBeInTheDocument()
 
-    click('Mon Oct 19 11:15 AM – 11:20 AM')
+    click('Mon Oct 19 11:45 AM – 11:50 AM')
     // Comments come only after both times are chosen.
     expect(screen.queryByText(/^Anything else we should know/)).not.toBeInTheDocument()
     expect(screen.getByText(/^Now your pickup, at least 3 hours after your drop-off\./))
       .toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Mon Oct 19 2:30 PM – 2:35 PM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Mon Oct 19 3:45 PM – 3:50 PM' })).toBeInTheDocument()
+    // Pickups come from the pickup availability, at least 3 hours after 11:50 AM.
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 3:00 PM – 3:05 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 4:00 PM – 4:05 PM' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mon Oct 19 4:45 PM – 4:50 PM' })).toBeInTheDocument()
 
-    click('Mon Oct 19 3:45 PM – 3:50 PM')
+    click('Mon Oct 19 4:00 PM – 4:05 PM')
     click('Skip')
     expect(
       screen.getByText(
-        /You're all set: Drop-off on Mon Oct 19 11:15 AM – 11:20 AM and pickup on Mon Oct 19 3:45 PM – 3:50 PM/,
+        /You're all set: Drop-off on Mon Oct 19 11:45 AM – 11:50 AM and pickup on Mon Oct 19 4:00 PM – 4:05 PM/,
       ),
     ).toBeInTheDocument()
+  })
+
+  it('greys out pickup dates that are too soon after the drop-off', () => {
+    renderCustomerLink({ ...business, turnaroundMinutes: 2 * 1440 })
+    click('Drop-off & pickup')
+    click('Monday, October 19')
+    click('Next')
+    enterTimes('09:00', '12:00')
+
+    // Open only Mon and Wed: 2 days of open time from Mon Oct 19 9 AM is
+    // Mon (15 hours) + Wed (24 hours) + 9 hours of the next Monday.
+    expect(screen.queryByRole('button', { name: /October 21/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday, October 26' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Wednesday, October 28' })).toBeEnabled()
   })
 
   it('says so when there is no room for both', () => {
@@ -447,13 +491,33 @@ describe('Customer page: drop-off and pickup together', () => {
     click('Drop-off & pickup')
     click('Monday, October 19')
     click('Next')
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
-    fireEvent.change(screen.getByLabelText('To'), { target: { value: '11:00' } })
-    click('Send')
+    enterTimes('09:00', '11:00')
+    click('Monday, October 19')
+    click('Next')
+    enterTimes('09:00', '11:00')
 
     expect(
       screen.getByText(/couldn't fit a drop-off and a pickup at least 3 hours apart/),
     ).toBeInTheDocument()
+  })
+
+  it('starts over from the drop-off dates', () => {
+    renderCustomerLink(business)
+    click('Drop-off & pickup')
+    click('Monday, October 19')
+    click('Next')
+    enterTimes('09:00', '12:00')
+    click('Start over')
+    click('Drop-off & pickup')
+    expect(
+      screen.getByText(
+        'To book a drop-off and pickup, first select available dates for your drop-off.',
+      ),
+    ).toBeInTheDocument()
+    click('Monday, October 19')
+    click('Next')
+    enterTimes('09:00', '12:00')
+    expect(screen.getByText(/^Now select available dates for your pickup/)).toBeInTheDocument()
   })
 })
 
@@ -476,9 +540,15 @@ describe('Customer page: no appointments', () => {
       hours,
     })
     expect(
-      screen.getByText('Hi! To book a drop-off and pickup, please select available dates.'),
+      screen.getByText(
+        'Hi! To book a drop-off and pickup, first select available dates for your drop-off.',
+      ),
     ).toBeInTheDocument()
 
+    click('Monday, October 19')
+    click('Next')
+    click('Send')
+    expect(screen.getByText(/^Now select available dates for your pickup/)).toBeInTheDocument()
     click('Monday, October 19')
     click('Next')
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
@@ -638,9 +708,19 @@ describe('Customer page: calendar length for drop-off and pickup', () => {
       turnaroundMinutes: 14 * 1440,
       hours,
     })
-    // 4 weeks + 14 days from Mon Oct 19 runs through Sun Nov 29.
-    expect(screen.getByRole('button', { name: 'Monday, November 23' })).toBeEnabled()
-    expect(screen.queryByRole('button', { name: /November 30/ })).not.toBeInTheDocument()
+    // Drop-off dates: the usual 4 weeks.
+    expect(screen.queryByRole('button', { name: /November 16/ })).not.toBeInTheDocument()
+    click('Monday, October 19')
+    click('Next')
+    click('Send')
+
+    // Open only on Mondays, so a 14-day gap is 14 Mondays of open time:
+    // pickups start Mon Jan 25, and the calendar runs to 14 Mondays past the
+    // last drop-off date (through Feb 16).
+    expect(screen.queryByRole('button', { name: /January 18/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday, January 25' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Monday, February 15' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /February 22/ })).not.toBeInTheDocument()
   })
 
   it('keeps the usual 4 weeks for other bookings', () => {
