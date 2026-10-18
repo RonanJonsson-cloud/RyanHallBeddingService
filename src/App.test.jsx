@@ -138,12 +138,12 @@ describe('Pickup and drop-off settings', () => {
     const offer = screen.getByLabelText('Offer pickups and drop-offs')
     expect(offer).toBeChecked()
     expect(screen.getByLabelText('Schedule drop-off and pickup together')).not.toBeChecked()
-    expect(
-      screen.queryByLabelText('Minimum time between drop-off and pickup'),
-    ).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Days')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText('Schedule drop-off and pickup together'))
-    expect(screen.getByLabelText('Minimum time between drop-off and pickup')).toHaveValue('180')
+    // The default gap is 3 hours.
+    expect(screen.getByLabelText('Days')).toHaveValue(0)
+    expect(screen.getByLabelText('Hours')).toHaveValue(3)
 
     fireEvent.click(offer)
     expect(screen.getByText("Customers can't book pickups or drop-offs.")).toBeInTheDocument()
@@ -155,17 +155,55 @@ describe('Pickup and drop-off settings', () => {
   it('puts the settings into the customer link', () => {
     render(<App />)
     fireEvent.click(screen.getByLabelText('Schedule drop-off and pickup together'))
-    fireEvent.change(screen.getByLabelText('Minimum time between drop-off and pickup'), {
-      target: { value: '1440' },
-    })
+    fireEvent.change(screen.getByLabelText('Days'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '0' } })
     addBusinessHours('Monday', '09:00', '17:00')
 
     const link = screen.getByLabelText('Customer link').value
     expect(decodeBusiness(new URL(link).searchParams.get('b'))).toMatchObject({
       offerHandoffs: true,
       handoffsTogether: true,
-      turnaroundMinutes: 1440,
+      turnaroundMinutes: 2 * 1440,
     })
+  })
+
+  it('sets the gap in days and hours, up to 28 days', () => {
+    render(<App />)
+    fireEvent.click(screen.getByLabelText('Schedule drop-off and pickup together'))
+    const days = screen.getByLabelText('Days')
+    const hours = screen.getByLabelText('Hours')
+
+    fireEvent.change(days, { target: { value: '1' } })
+    fireEvent.change(hours, { target: { value: '6' } })
+    expect(
+      screen.getByText(/Pickups will be at least 1 day 6 hours after the drop-off\./),
+    ).toBeInTheDocument()
+
+    // Boxes can't go past their limits.
+    fireEvent.change(days, { target: { value: '40' } })
+    expect(days).toHaveValue(28)
+    fireEvent.change(hours, { target: { value: '30' } })
+    expect(hours).toHaveValue(23)
+  })
+
+  it('rejects gaps under 1 hour or over 28 days, and hides the link', () => {
+    render(<App />)
+    addBusinessHours('Monday', '09:00', '17:00')
+    fireEvent.click(screen.getByLabelText('Schedule drop-off and pickup together'))
+
+    fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '0' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('at least 1 hour')
+    expect(screen.queryByLabelText('Customer link')).not.toBeInTheDocument()
+    expect(screen.getByText(/Fix the minimum time between drop-off and pickup/))
+      .toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Days'), { target: { value: '28' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Customer link')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '1' } })
+    expect(screen.getByRole('alert')).toHaveTextContent('at most 28 days')
+    expect(screen.queryByLabelText('Customer link')).not.toBeInTheDocument()
   })
 })
 
@@ -586,5 +624,29 @@ describe('Customer page: calendar', () => {
     // At 4:50 PM the last Monday pickup (4:45) has passed, so it moves to Wednesday.
     expect(screen.getByText(/The earliest day that works is Wed Oct 21/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Mon Oct 19/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('Customer page: calendar length for drop-off and pickup', () => {
+  const hours = [{ day: 'Monday', start: '09:00', end: '17:00', breaks: [] }]
+
+  it('shows extra days to fit a long gap before the pickup', () => {
+    renderCustomerLink({
+      name: 'Ryan Hall Bedding Service',
+      offerAppointments: false,
+      handoffsTogether: true,
+      turnaroundMinutes: 14 * 1440,
+      hours,
+    })
+    // 4 weeks + 14 days from Mon Oct 19 runs through Sun Nov 29.
+    expect(screen.getByRole('button', { name: 'Monday, November 23' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /November 30/ })).not.toBeInTheDocument()
+  })
+
+  it('keeps the usual 4 weeks for other bookings', () => {
+    renderCustomerLink({ name: 'Ryan Hall Bedding Service', hours })
+    click('Pickup')
+    expect(screen.getByRole('button', { name: 'Monday, November 9' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: /November 16/ })).not.toBeInTheDocument()
   })
 })

@@ -74,6 +74,11 @@ describe('share links', () => {
     expect(decodeBusiness(encode({ n: 42, h: [] }))).toBeNull()
   })
 
+  it('accepts a gap of up to 28 days', () => {
+    const decoded = decodeBusiness(encodeBusiness({ ...business, turnaroundMinutes: 28 * 1440 }))
+    expect(decoded.turnaroundMinutes).toBe(28 * 1440)
+  })
+
   it('rejects impossible pickup and drop-off settings', () => {
     for (const o of [2, -1, '0', false]) {
       expect(decodeBusiness(encode({ n: 'X', o, h: [] }))).toBeNull()
@@ -81,7 +86,7 @@ describe('share links', () => {
     for (const p of [3, -1, '2', true]) {
       expect(decodeBusiness(encode({ n: 'X', p, h: [] }))).toBeNull()
     }
-    for (const t of [0, 7, 99999, '180']) {
+    for (const t of [0, 7, 30, 28 * 1440 + 60, '180']) {
       expect(decodeBusiness(encode({ n: 'X', p: 2, t, h: [] }))).toBeNull()
     }
   })

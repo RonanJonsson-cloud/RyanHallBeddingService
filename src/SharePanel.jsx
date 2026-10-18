@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { availableServices } from './scheduling.js'
+import { availableServices, turnaroundError } from './scheduling.js'
 import { customerLink } from './shareLink.js'
 
 const DOWNLOAD_SIZE = 1024
@@ -56,6 +56,22 @@ function SharePanel({ business }) {
         <h2>Share with customers</h2>
         <p className="hint">
           Turn on appointments or pickups and drop-offs above to get a customer link and QR code.
+        </p>
+      </section>
+    )
+  }
+
+  if (
+    business.offerHandoffs &&
+    business.handoffsTogether &&
+    turnaroundError(business.turnaroundMinutes)
+  ) {
+    return (
+      <section className="card share">
+        <h2>Share with customers</h2>
+        <p className="hint">
+          Fix the minimum time between drop-off and pickup above to get a customer link and QR
+          code.
         </p>
       </section>
     )

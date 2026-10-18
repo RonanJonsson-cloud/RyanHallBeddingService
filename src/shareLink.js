@@ -2,6 +2,7 @@ import {
   DAYS,
   DEFAULT_APPOINTMENT_MINUTES,
   DEFAULT_TURNAROUND_MINUTES,
+  MAX_TURNAROUND_MINUTES,
   isValidRange,
 } from './scheduling.js'
 
@@ -10,7 +11,6 @@ import {
 export const LINK_PARAM = 'b'
 const MAX_NAME_LENGTH = 80
 const MAX_APPOINTMENT_MINUTES = 8 * 60
-const MAX_TURNAROUND_MINUTES = 7 * 24 * 60
 
 // How pickups and drop-offs are offered, stored as one small number.
 const HANDOFFS_OFF = 0
@@ -92,7 +92,7 @@ export function decodeBusiness(encoded) {
     if (appointments !== 0 && appointments !== 1) return null
     if (!isMinutes(appointmentMinutes, 5, MAX_APPOINTMENT_MINUTES)) return null
     if (![HANDOFFS_OFF, HANDOFFS_SEPARATE, HANDOFFS_TOGETHER].includes(handoffs)) return null
-    if (!isMinutes(turnaroundMinutes, 5, MAX_TURNAROUND_MINUTES)) return null
+    if (!isMinutes(turnaroundMinutes, 60, MAX_TURNAROUND_MINUTES)) return null
 
     const hours = compact.h.map((entry) => {
       if (!Array.isArray(entry) || entry.length < 3 || entry.length % 2 === 0) throw new Error()

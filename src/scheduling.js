@@ -18,7 +18,18 @@ export const HANDOFF_MINUTES = 5
 export const DEFAULT_APPOINTMENT_MINUTES = 30
 export const APPOINTMENT_LENGTHS = [15, 30, 45, 60, 90, 120]
 export const DEFAULT_TURNAROUND_MINUTES = 180
-export const TURNAROUND_OPTIONS = [60, 120, 180, 240, 360, 720, 1440, 2880]
+// The business sets the gap between drop-off and pickup in days and hours.
+export const MAX_TURNAROUND_DAYS = 28
+export const MAX_TURNAROUND_MINUTES = MAX_TURNAROUND_DAYS * 24 * 60
+
+// Returns an error message, or '' if the drop-off-to-pickup gap is fine.
+export function turnaroundError(minutes) {
+  if (minutes < 60) return 'The minimum time must be at least 1 hour.'
+  if (minutes > MAX_TURNAROUND_MINUTES) {
+    return `The minimum time can be at most ${MAX_TURNAROUND_DAYS} days.`
+  }
+  return ''
+}
 
 export function serviceMinutes(service, appointmentMinutes) {
   return service === 'Appointment' ? appointmentMinutes : HANDOFF_MINUTES

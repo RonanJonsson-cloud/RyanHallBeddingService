@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   PAIRED_SERVICE,
+  turnaroundError,
   addDays,
   availableServices,
   findOverlaps,
@@ -421,5 +422,18 @@ describe('paired drop-off and pickup', () => {
       { date: TUE, start: '09:00', end: '10:00' },
     ]
     expect(suggestDropOffs(hours, free, { turnaroundMinutes: 2880 })).toEqual([])
+  })
+})
+
+describe('turnaroundError', () => {
+  it('accepts 1 hour to 28 days', () => {
+    expect(turnaroundError(60)).toBe('')
+    expect(turnaroundError(3 * 1440 + 5 * 60)).toBe('')
+    expect(turnaroundError(28 * 1440)).toBe('')
+  })
+
+  it('rejects anything shorter or longer', () => {
+    expect(turnaroundError(0)).toBe('The minimum time must be at least 1 hour.')
+    expect(turnaroundError(28 * 1440 + 60)).toBe('The minimum time can be at most 28 days.')
   })
 })

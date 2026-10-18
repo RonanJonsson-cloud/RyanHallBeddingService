@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import BreaksEditor from './BreaksEditor.jsx'
 import DatePicker from './DatePicker.jsx'
 import {
+  BOOKING_WINDOW_DAYS,
   DEFAULT_APPOINTMENT_MINUTES,
   DEFAULT_TURNAROUND_MINUTES,
   HANDOFF_MINUTES,
@@ -380,6 +381,13 @@ function CustomerPage({ business }) {
               openDays={new Set(businessHours.map((range) => range.day))}
               selected={dates}
               onToggle={toggleDate}
+              // A paired booking's pickup can land up to the turnaround after
+              // the last bookable drop-off date, so show that much extra.
+              windowDays={
+                service === PAIRED_SERVICE
+                  ? BOOKING_WINDOW_DAYS + Math.ceil(turnaroundMinutes / 1440)
+                  : BOOKING_WINDOW_DAYS
+              }
             />
             <button
               type="button"

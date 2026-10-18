@@ -410,8 +410,13 @@ a.button {
   border-radius: 10px;
 }
 
-.option-box .field {
+.option-box .field,
+.option-box .turnaround {
   margin-top: 6px;
+}
+
+.turnaround legend {
+  font-weight: 500;
 }
 
 .check {

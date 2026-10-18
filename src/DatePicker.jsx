@@ -10,10 +10,10 @@ const MONTHS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ]
 
-// A Monday-first calendar from today through the booking window. Dates the
-// business is closed (or that have passed) can't be picked.
-function DatePicker({ today, openDays, selected, onToggle }) {
-  const lastDate = addDays(today, BOOKING_WINDOW_DAYS - 1)
+// A Monday-first calendar from today through the next `windowDays` days.
+// Dates the business is closed (or that have passed) can't be picked.
+function DatePicker({ today, openDays, selected, onToggle, windowDays = BOOKING_WINDOW_DAYS }) {
+  const lastDate = addDays(today, windowDays - 1)
   const firstShown = addDays(today, -HEADINGS.indexOf(weekdayOf(today).slice(0, 3)))
 
   const dates = []

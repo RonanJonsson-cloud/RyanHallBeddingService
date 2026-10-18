@@ -5,11 +5,12 @@ import {
   APPOINTMENT_LENGTHS,
   DAYS,
   HANDOFF_MINUTES,
-  TURNAROUND_OPTIONS,
+  MAX_TURNAROUND_DAYS,
   formatDuration,
   formatRange,
   rangeError,
   sortRanges,
+  turnaroundError,
 } from './scheduling.js'
 
 let nextId = 1
@@ -54,6 +55,61 @@ function AddBreakForm({ range, onSave, onCancel }) {
         </button>
       </div>
     </div>
+  )
+}
+
+// A whole number from a number box, kept within [min, max]. Blank counts as 0.
+function wholeNumber(value, min, max) {
+  const number = Math.floor(Number(value)) || 0
+  return Math.min(Math.max(number, min), max)
+}
+
+// The gap between drop-off and pickup, entered as days plus hours.
+function TurnaroundInput({ minutes, onChange }) {
+  const days = Math.floor(minutes / 1440)
+  const hours = Math.floor((minutes % 1440) / 60)
+  const error = turnaroundError(minutes)
+
+  return (
+    <fieldset className="option-group turnaround">
+      <legend>Minimum time between drop-off and pickup</legend>
+      <div className="field-row">
+        <label className="field">
+          Days
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={MAX_TURNAROUND_DAYS}
+            value={days}
+            onChange={(e) =>
+              onChange(wholeNumber(e.target.value, 0, MAX_TURNAROUND_DAYS) * 1440 + hours * 60)
+            }
+          />
+        </label>
+        <label className="field">
+          Hours
+          <input
+            type="number"
+            inputMode="numeric"
+            min={0}
+            max={23}
+            value={hours}
+            onChange={(e) => onChange(days * 1440 + wholeNumber(e.target.value, 0, 23) * 60)}
+          />
+        </label>
+      </div>
+      {error ? (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      ) : (
+        <p className="note">
+          Pickups will be at least {formatDuration(minutes)} after the drop-off. Up to{' '}
+          {MAX_TURNAROUND_DAYS} days.
+        </p>
+      )}
+    </fieldset>
   )
 }
 
@@ -142,19 +198,10 @@ function SettingsCard({ settings, onSettingsChange }) {
           )}
 
           {settings.offerHandoffs && settings.handoffsTogether && (
-            <label className="field">
-              Minimum time between drop-off and pickup
-              <select
-                value={settings.turnaroundMinutes}
-                onChange={(e) => set('turnaroundMinutes', Number(e.target.value))}
-              >
-                {TURNAROUND_OPTIONS.map((minutes) => (
-                  <option key={minutes} value={minutes}>
-                    {formatDuration(minutes)}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <TurnaroundInput
+              minutes={settings.turnaroundMinutes}
+              onChange={(minutes) => set('turnaroundMinutes', minutes)}
+            />
           )}
         </div>
       </fieldset>
