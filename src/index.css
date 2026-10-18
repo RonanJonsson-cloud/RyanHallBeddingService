@@ -119,7 +119,8 @@ h2 {
 
 /* 16px stops phones from zooming in when a field is tapped. */
 select,
-input {
+input,
+textarea {
   width: 100%;
   min-height: 44px;
   padding: 0 10px;
@@ -130,6 +131,12 @@ input {
   font: inherit;
   font-size: 16px;
   font-weight: 400;
+}
+
+textarea {
+  padding: 10px;
+  line-height: 1.4;
+  resize: vertical;
 }
 
 .button {

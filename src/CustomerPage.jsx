@@ -23,6 +23,8 @@ const GREETING = {
 }
 
 const DAYS_QUESTION = 'Which days are you available? Tap all that work, then press Next.'
+const COMMENTS_QUESTION = 'Anything else we should know?'
+const MAX_COMMENT_LENGTH = 500
 
 function slotLabel(slot) {
   return `${slot.day} ${formatRange(slot)}`
@@ -117,6 +119,43 @@ function TimeRangeForm({ day, onSubmit }) {
   )
 }
 
+function CommentForm({ onSubmit }) {
+  const [comment, setComment] = useState('')
+  const [error, setError] = useState('')
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    const trimmed = comment.trim()
+    if (!trimmed) {
+      setError('Please type a comment, or tap Start over to begin again.')
+      return
+    }
+    onSubmit(trimmed)
+  }
+
+  return (
+    <form className="card" onSubmit={handleSubmit} aria-label="Comments">
+      <label className="field">
+        Your comments
+        <textarea
+          rows={4}
+          value={comment}
+          maxLength={MAX_COMMENT_LENGTH}
+          onChange={(e) => setComment(e.target.value)}
+        />
+      </label>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <button type="submit" className="button primary">
+        Send
+      </button>
+    </form>
+  )
+}
+
 function CustomerPage({ business }) {
   const {
     hours: businessHours,
@@ -139,6 +178,8 @@ function CustomerPage({ business }) {
   const [slots, setSlots] = useState([])
   // For a paired booking, the drop-off chosen before picking a pickup.
   const [dropOff, setDropOff] = useState(null)
+  // The booking summary, held while the customer adds any comments.
+  const [booked, setBooked] = useState('')
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -248,13 +289,34 @@ function CustomerPage({ business }) {
       return
     }
 
-    const booked =
+    setBooked(
       service === PAIRED_SERVICE
         ? `Drop-off on ${slotLabel(dropOff)} and pickup on ${slotLabel(slot)}`
-        : `${service} on ${slotLabel(slot)}`
+        : `${service} on ${slotLabel(slot)}`,
+    )
+    say({ from: 'bot', text: COMMENTS_QUESTION })
+    setStep('comments')
+  }
+
+  function answerComments(wantsToComment) {
+    say({ from: 'user', text: wantsToComment ? 'Yes' : 'Skip' })
+    if (wantsToComment) {
+      say({ from: 'bot', text: 'What would you like the business to know?' })
+      setStep('comment')
+      return
+    }
+    confirm()
+  }
+
+  function submitComment(comment) {
+    say({ from: 'user', text: comment })
+    confirm(' Thanks for your note.')
+  }
+
+  function confirm(extra = '') {
     say({
       from: 'bot',
-      text: `You're all set: ${booked}. (This is a demo, so nothing is saved yet.)`,
+      text: `You're all set: ${booked}.${extra} (This is a demo, so nothing is saved yet.)`,
     })
     setStep('done')
   }
@@ -269,6 +331,7 @@ function CustomerPage({ business }) {
     setCustomerHours([])
     setSlots([])
     setDropOff(null)
+    setBooked('')
   }
 
   return (
@@ -343,6 +406,19 @@ function CustomerPage({ business }) {
             ))}
           </div>
         )}
+
+        {step === 'comments' && (
+          <div className="choices">
+            <button type="button" className="button" onClick={() => answerComments(true)}>
+              Yes
+            </button>
+            <button type="button" className="button" onClick={() => answerComments(false)}>
+              Skip
+            </button>
+          </div>
+        )}
+
+        {step === 'comment' && <CommentForm onSubmit={submitComment} />}
 
         {messages.length > 1 && (
           <button type="button" className="button link" onClick={restart}>

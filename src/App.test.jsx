@@ -257,6 +257,11 @@ describe('Customer page (from a shared link)', () => {
 
     click('Monday 1:30 PM – 2:00 PM')
     expect(
+      screen.getByText('Anything else we should know?'),
+    ).toBeInTheDocument()
+    click('Skip')
+    expect(screen.queryByLabelText('Your comments')).not.toBeInTheDocument()
+    expect(
       screen.getByText(/You're all set: Appointment on Monday 1:30 PM – 2:00 PM/),
     ).toBeInTheDocument()
   })
@@ -375,6 +380,8 @@ describe('Customer page: drop-off and pickup together', () => {
     expect(screen.getByRole('button', { name: 'Monday 1:30 PM – 1:35 PM' })).toBeInTheDocument()
 
     click('Monday 11:15 AM – 11:20 AM')
+    // Comments come only after both times are chosen.
+    expect(screen.queryByText(/^Anything else we should know/)).not.toBeInTheDocument()
     expect(screen.getByText(/^Now your pickup, at least 3 hours after your drop-off\./))
       .toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Monday 2:30 PM – 2:35 PM' })).toBeInTheDocument()
@@ -382,6 +389,7 @@ describe('Customer page: drop-off and pickup together', () => {
     expect(screen.getByRole('button', { name: 'Monday 4:45 PM – 4:50 PM' })).toBeInTheDocument()
 
     click('Monday 3:45 PM – 3:50 PM')
+    click('Skip')
     expect(
       screen.getByText(
         /You're all set: Drop-off on Monday 11:15 AM – 11:20 AM and pickup on Monday 3:45 PM – 3:50 PM/,
@@ -444,5 +452,60 @@ describe('Customer page: no appointments', () => {
     expect(screen.getByText("Sorry, this business isn't taking bookings right now."))
       .toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+})
+
+describe('Customer page: final comments', () => {
+  const business = {
+    name: 'Ryan Hall Bedding Service',
+    hours: [{ day: 'Monday', start: '09:00', end: '17:00', breaks: [] }],
+  }
+
+  function bookPickup() {
+    renderCustomerLink(business)
+    click('Pickup')
+    click('Monday')
+    click('Next')
+    click('Send')
+    click('Monday 9:00 AM – 9:05 AM')
+  }
+
+  it('asks a yes or no question before finishing', () => {
+    bookPickup()
+    expect(
+      screen.getByText('Anything else we should know?'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Yes' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument()
+    expect(screen.queryByText(/You're all set/)).not.toBeInTheDocument()
+  })
+
+  it('shows a text box when the customer says yes', () => {
+    bookPickup()
+    click('Yes')
+    expect(screen.getByText('What would you like the business to know?')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument()
+
+    click('Send')
+    expect(screen.getByRole('alert')).toHaveTextContent('Please type a comment')
+
+    fireEvent.change(screen.getByLabelText('Your comments'), {
+      target: { value: 'Please knock, the doorbell is broken.' },
+    })
+    click('Send')
+    expect(screen.getByText('Please knock, the doorbell is broken.')).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        /You're all set: Pickup on Monday 9:00 AM – 9:05 AM\. Thanks for your note\./,
+      ),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Your comments')).not.toBeInTheDocument()
+  })
+
+  it('finishes straight away when the customer skips', () => {
+    bookPickup()
+    click('Skip')
+    expect(screen.getByText(/You're all set: Pickup on Monday 9:00 AM – 9:05 AM\. \(This/))
+      .toBeInTheDocument()
   })
 })
