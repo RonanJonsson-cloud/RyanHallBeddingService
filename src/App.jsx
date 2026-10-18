@@ -41,6 +41,7 @@ function BusinessView() {
   // Kept in memory only: refreshing the page clears it.
   const [settings, setSettings] = useState({
     name: 'Ryan Hall Bedding Service',
+    offerAppointments: true,
     appointmentMinutes: DEFAULT_APPOINTMENT_MINUTES,
     offerHandoffs: true,
     handoffsTogether: false,

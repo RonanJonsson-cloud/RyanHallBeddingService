@@ -6,6 +6,7 @@ const encode = (value) =>
 
 const business = {
   name: 'Café Ryan — Bedding',
+  offerAppointments: true,
   appointmentMinutes: 45,
   offerHandoffs: true,
   handoffsTogether: true,
@@ -29,6 +30,11 @@ describe('share links', () => {
     expect(decodeBusiness(encodeBusiness(business))).toEqual(business)
   })
 
+  it('round-trips a business that does not offer appointments', () => {
+    const decoded = decodeBusiness(encodeBusiness({ ...business, offerAppointments: false }))
+    expect(decoded.offerAppointments).toBe(false)
+  })
+
   it('round-trips a business that only offers appointments', () => {
     const decoded = decodeBusiness(encodeBusiness({ ...business, offerHandoffs: false }))
     expect(decoded.offerHandoffs).toBe(false)
@@ -38,6 +44,7 @@ describe('share links', () => {
   it('fills in defaults for links made before these settings existed', () => {
     const oldLink = encode({ n: 'X', h: [[0, '0900', '1700']] })
     expect(decodeBusiness(oldLink)).toMatchObject({
+      offerAppointments: true,
       appointmentMinutes: 30,
       offerHandoffs: true,
       handoffsTogether: false,
@@ -68,6 +75,9 @@ describe('share links', () => {
   })
 
   it('rejects impossible pickup and drop-off settings', () => {
+    for (const o of [2, -1, '0', false]) {
+      expect(decodeBusiness(encode({ n: 'X', o, h: [] }))).toBeNull()
+    }
     for (const p of [3, -1, '2', true]) {
       expect(decodeBusiness(encode({ n: 'X', p, h: [] }))).toBeNull()
     }

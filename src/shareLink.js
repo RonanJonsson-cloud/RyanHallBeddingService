@@ -32,11 +32,12 @@ function fromBase64Url(encoded) {
   return new TextDecoder().decode(bytes)
 }
 
-// { name, appointmentMinutes, offerHandoffs, handoffsTogether, turnaroundMinutes,
-//   hours: [{ day, start, end, breaks }] } -> short string.
+// { name, offerAppointments, appointmentMinutes, offerHandoffs, handoffsTogether,
+//   turnaroundMinutes, hours: [{ day, start, end, breaks }] } -> short string.
 // Days become 0–6 and times drop their colons to keep the QR code small.
 export function encodeBusiness({
   name,
+  offerAppointments = true,
   appointmentMinutes = DEFAULT_APPOINTMENT_MINUTES,
   offerHandoffs = true,
   handoffsTogether = false,
@@ -50,6 +51,8 @@ export function encodeBusiness({
       : HANDOFFS_SEPARATE
   const compact = {
     n: name.trim().slice(0, MAX_NAME_LENGTH),
+    // Left out unless appointments are off, so older links still mean "on".
+    ...(!offerAppointments && { o: 0 }),
     a: appointmentMinutes,
     p: handoffs,
     ...(handoffs === HANDOFFS_TOGETHER && { t: turnaroundMinutes }),
@@ -82,9 +85,11 @@ export function decodeBusiness(encoded) {
     if (typeof compact?.n !== 'string' || !Array.isArray(compact.h)) return null
 
     // Older links are missing newer settings; fill in what they used to mean.
+    const appointments = compact.o ?? 1
     const appointmentMinutes = compact.a ?? DEFAULT_APPOINTMENT_MINUTES
     const handoffs = compact.p ?? HANDOFFS_SEPARATE
     const turnaroundMinutes = compact.t ?? DEFAULT_TURNAROUND_MINUTES
+    if (appointments !== 0 && appointments !== 1) return null
     if (!isMinutes(appointmentMinutes, 5, MAX_APPOINTMENT_MINUTES)) return null
     if (![HANDOFFS_OFF, HANDOFFS_SEPARATE, HANDOFFS_TOGETHER].includes(handoffs)) return null
     if (!isMinutes(turnaroundMinutes, 5, MAX_TURNAROUND_MINUTES)) return null
@@ -105,6 +110,7 @@ export function decodeBusiness(encoded) {
 
     return {
       name: compact.n.slice(0, MAX_NAME_LENGTH),
+      offerAppointments: appointments === 1,
       appointmentMinutes,
       offerHandoffs: handoffs !== HANDOFFS_OFF,
       handoffsTogether: handoffs === HANDOFFS_TOGETHER,

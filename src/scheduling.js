@@ -25,10 +25,15 @@ export function serviceMinutes(service, appointmentMinutes) {
 }
 
 // What a customer can choose from, given the business's settings.
-export function availableServices({ offerHandoffs, handoffsTogether }) {
-  if (!offerHandoffs) return ['Appointment']
-  if (handoffsTogether) return ['Appointment', PAIRED_SERVICE]
-  return ['Appointment', 'Pickup', 'Drop-off']
+export function availableServices({
+  offerAppointments = true,
+  offerHandoffs = true,
+  handoffsTogether = false,
+}) {
+  const services = offerAppointments ? ['Appointment'] : []
+  if (!offerHandoffs) return services
+  if (handoffsTogether) return [...services, PAIRED_SERVICE]
+  return [...services, 'Pickup', 'Drop-off']
 }
 
 // 5 -> "5 minutes", 90 -> "1 hour 30 minutes", 1440 -> "1 day"

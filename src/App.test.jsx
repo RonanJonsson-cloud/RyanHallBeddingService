@@ -93,6 +93,38 @@ describe('Business page', () => {
   })
 })
 
+describe('Appointment settings', () => {
+  it('shows the appointment length only when appointments are offered', () => {
+    render(<App />)
+    const offer = screen.getByLabelText('Offer appointments')
+    expect(offer).toBeChecked()
+    expect(screen.getByLabelText('Appointment length')).toHaveValue('30')
+
+    fireEvent.click(offer)
+    expect(screen.queryByLabelText('Appointment length')).not.toBeInTheDocument()
+    expect(screen.getByText("Customers can't book appointments.")).toBeInTheDocument()
+  })
+
+  it('warns and hides the link when nothing can be booked', () => {
+    render(<App />)
+    addBusinessHours('Monday', '09:00', '17:00')
+    fireEvent.click(screen.getByLabelText('Offer appointments'))
+    fireEvent.click(screen.getByLabelText('Offer pickups and drop-offs'))
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Turn on appointments or pickups and drop-offs',
+    )
+    expect(screen.queryByLabelText('Customer link')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Offer pickups and drop-offs'))
+    const link = screen.getByLabelText('Customer link').value
+    expect(decodeBusiness(new URL(link).searchParams.get('b'))).toMatchObject({
+      offerAppointments: false,
+      offerHandoffs: true,
+    })
+  })
+})
+
 describe('Pickup and drop-off settings', () => {
   it('shows the together option only when pickups and drop-offs are offered', () => {
     render(<App />)
@@ -107,7 +139,7 @@ describe('Pickup and drop-off settings', () => {
     expect(screen.getByLabelText('Minimum time between drop-off and pickup')).toHaveValue('180')
 
     fireEvent.click(offer)
-    expect(screen.getByText('Customers can only book appointments.')).toBeInTheDocument()
+    expect(screen.getByText("Customers can't book pickups or drop-offs.")).toBeInTheDocument()
     expect(
       screen.queryByLabelText('Schedule drop-off and pickup together'),
     ).not.toBeInTheDocument()
@@ -369,5 +401,48 @@ describe('Customer page: drop-off and pickup together', () => {
     expect(
       screen.getByText(/couldn't fit a drop-off and a pickup at least 3 hours apart/),
     ).toBeInTheDocument()
+  })
+})
+
+describe('Customer page: no appointments', () => {
+  const hours = [{ day: 'Monday', start: '09:00', end: '17:00', breaks: [] }]
+
+  it('offers only pickup and drop-off', () => {
+    renderCustomerLink({ name: 'Ryan Hall Bedding Service', offerAppointments: false, hours })
+    expect(screen.queryByRole('button', { name: 'Appointment' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Pickup' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Drop-off' })).toBeInTheDocument()
+  })
+
+  it('skips the question when the paired booking is the only option', () => {
+    renderCustomerLink({
+      name: 'Ryan Hall Bedding Service',
+      offerAppointments: false,
+      handoffsTogether: true,
+      turnaroundMinutes: 180,
+      hours,
+    })
+    expect(
+      screen.getByText(/^Hi! I'll help you book a drop-off and pickup\. You'll book a drop-off first/),
+    ).toBeInTheDocument()
+
+    click('Monday')
+    click('Next')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '17:00' } })
+    click('Send')
+    expect(screen.getByText(/^First, your drop-off\./)).toBeInTheDocument()
+  })
+
+  it('says so when nothing can be booked', () => {
+    renderCustomerLink({
+      name: 'Ryan Hall Bedding Service',
+      offerAppointments: false,
+      offerHandoffs: false,
+      hours,
+    })
+    expect(screen.getByText("Sorry, this business isn't taking bookings right now."))
+      .toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })

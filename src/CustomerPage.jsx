@@ -45,18 +45,32 @@ function matchesText(matches, what) {
     : `The earliest day that works is ${matches[0].day}. Here are ${matches.length} times across that day for your ${what}:`
 }
 
+const SERVICE_NAMES = {
+  Appointment: 'an appointment',
+  [PAIRED_SERVICE]: 'a drop-off and pickup',
+}
+
 // With only one service on offer, skip straight to asking for days.
 function startingChat(services, settings) {
+  if (services.length === 0) {
+    return {
+      messages: [{ from: 'bot', text: "Sorry, this business isn't taking bookings right now." }],
+      step: 'done',
+      service: '',
+    }
+  }
   if (services.length === 1) {
+    const service = services[0]
+    const name = SERVICE_NAMES[service] ?? `a ${service.toLowerCase()}`
     return {
       messages: [
         {
           from: 'bot',
-          text: `Hi! I'll help you book an appointment. ${serviceIntro('Appointment', settings)} ${DAYS_QUESTION}`,
+          text: `Hi! I'll help you book ${name}. ${serviceIntro(service, settings)} ${DAYS_QUESTION}`,
         },
       ],
       step: 'days',
-      service: services[0],
+      service,
     }
   }
   return { messages: [GREETING], step: 'service', service: '' }
@@ -106,13 +120,14 @@ function TimeRangeForm({ day, onSubmit }) {
 function CustomerPage({ business }) {
   const {
     hours: businessHours,
+    offerAppointments = true,
     appointmentMinutes = DEFAULT_APPOINTMENT_MINUTES,
     offerHandoffs = true,
     handoffsTogether = false,
     turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES,
   } = business
   const settings = { appointmentMinutes, turnaroundMinutes }
-  const services = availableServices({ offerHandoffs, handoffsTogether })
+  const services = availableServices({ offerAppointments, offerHandoffs, handoffsTogether })
 
   const [initial] = useState(() => startingChat(services, settings))
   const [messages, setMessages] = useState(initial.messages)

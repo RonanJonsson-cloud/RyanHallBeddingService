@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
+import { availableServices } from './scheduling.js'
 import { customerLink } from './shareLink.js'
 
 const DOWNLOAD_SIZE = 1024
@@ -45,6 +46,17 @@ function SharePanel({ business }) {
       <section className="card share">
         <h2>Share with customers</h2>
         <p className="hint">Add your hours above to get a customer link and QR code.</p>
+      </section>
+    )
+  }
+
+  if (availableServices(business).length === 0) {
+    return (
+      <section className="card share">
+        <h2>Share with customers</h2>
+        <p className="hint">
+          Turn on appointments or pickups and drop-offs above to get a customer link and QR code.
+        </p>
       </section>
     )
   }

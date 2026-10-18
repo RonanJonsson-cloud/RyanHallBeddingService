@@ -73,19 +73,38 @@ function SettingsCard({ settings, onSettingsChange }) {
           onChange={(e) => set('name', e.target.value)}
         />
       </label>
-      <label className="field">
-        Appointment length
-        <select
-          value={settings.appointmentMinutes}
-          onChange={(e) => set('appointmentMinutes', Number(e.target.value))}
-        >
-          {APPOINTMENT_LENGTHS.map((minutes) => (
-            <option key={minutes} value={minutes}>
-              {formatDuration(minutes)}
-            </option>
-          ))}
-        </select>
-      </label>
+      <fieldset className="option-group">
+        <legend>Appointments</legend>
+        <div className="option-box">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.offerAppointments}
+              onChange={(e) => set('offerAppointments', e.target.checked)}
+            />
+            Offer appointments
+          </label>
+          {!settings.offerAppointments && (
+            <p className="note">Customers can't book appointments.</p>
+          )}
+
+          {settings.offerAppointments && (
+            <label className="field">
+              Appointment length
+              <select
+                value={settings.appointmentMinutes}
+                onChange={(e) => set('appointmentMinutes', Number(e.target.value))}
+              >
+                {APPOINTMENT_LENGTHS.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {formatDuration(minutes)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      </fieldset>
 
       <fieldset className="option-group">
         <legend>Pickups and drop-offs</legend>
@@ -101,7 +120,7 @@ function SettingsCard({ settings, onSettingsChange }) {
           <p className="note">
             {settings.offerHandoffs
               ? `Each one takes ${formatDuration(HANDOFF_MINUTES)}.`
-              : 'Customers can only book appointments.'}
+              : "Customers can't book pickups or drop-offs."}
           </p>
 
           {settings.offerHandoffs && (
@@ -139,6 +158,12 @@ function SettingsCard({ settings, onSettingsChange }) {
           )}
         </div>
       </fieldset>
+
+      {!settings.offerAppointments && !settings.offerHandoffs && (
+        <p className="error" role="alert">
+          Turn on appointments or pickups and drop-offs so customers have something to book.
+        </p>
+      )}
     </section>
   )
 }

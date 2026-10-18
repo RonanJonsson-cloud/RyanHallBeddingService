@@ -243,6 +243,19 @@ describe('suggestSlots', () => {
 })
 
 describe('availableServices', () => {
+  it('leaves out appointments when they are off', () => {
+    expect(
+      availableServices({ offerAppointments: false, offerHandoffs: true, handoffsTogether: false }),
+    ).toEqual(['Pickup', 'Drop-off'])
+    expect(
+      availableServices({ offerAppointments: false, offerHandoffs: true, handoffsTogether: true }),
+    ).toEqual([PAIRED_SERVICE])
+  })
+
+  it('offers nothing when everything is off', () => {
+    expect(availableServices({ offerAppointments: false, offerHandoffs: false })).toEqual([])
+  })
+
   it('offers only appointments when pickups and drop-offs are off', () => {
     expect(availableServices({ offerHandoffs: false, handoffsTogether: true })).toEqual([
       'Appointment',
