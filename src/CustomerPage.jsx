@@ -14,13 +14,16 @@ import {
   formatDuration,
   formatRange,
   formatRangeWithBreaks,
+  formatTime,
   nowOnTimeline,
   rangeError,
   serviceMinutes,
+  sortRanges,
   suggestDropOffs,
   suggestPickups,
   suggestSlots,
   toDateString,
+  weekdayOf,
 } from './scheduling.js'
 
 const GREETING = {
@@ -88,15 +91,49 @@ function startingChat(services, hasHours) {
   return { messages: [GREETING], step: 'service', service: '' }
 }
 
-function TimeRangeForm({ label, onSubmit }) {
-  const [start, setStart] = useState('09:00')
-  const [end, setEnd] = useState('12:00')
-  const [breaks, setBreaks] = useState([])
+// The business's hours on one weekday: the earliest opening and latest
+// closing (customers must stay within these), plus a description like
+// "9:00 AM – 5:00 PM (busy 12:00 PM – 1:00 PM)".
+function hoursOn(weekday, businessHours) {
+  const ranges = sortRanges(businessHours.filter((range) => range.day === weekday))
+  return {
+    open: ranges.reduce((a, r) => (r.start < a ? r.start : a), ranges[0].start),
+    close: ranges.reduce((a, r) => (r.end > a ? r.end : a), ranges[0].end),
+    text: ranges.map(formatRangeWithBreaks).join(', '),
+  }
+}
+
+// The first date's times, trimmed to fit another date's business hours.
+// null if they don't overlap those hours at all.
+function fitWithin(range, hours) {
+  const start = range.start > hours.open ? range.start : hours.open
+  const end = range.end < hours.close ? range.end : hours.close
+  if (end <= start) return null
+  const breaks = range.breaks
+    .map((b) => ({
+      ...b,
+      start: b.start > start ? b.start : start,
+      end: b.end < end ? b.end : end,
+    }))
+    .filter((b) => b.end > b.start)
+  return { start, end, breaks }
+}
+
+// `initial` fills in the form (e.g. with the first date's times); otherwise
+// it starts with the business's hours for that date.
+function TimeRangeForm({ label, hours, initial, onSubmit }) {
+  const [start, setStart] = useState(initial?.start ?? hours.open)
+  const [end, setEnd] = useState(initial?.end ?? hours.close)
+  const [breaks, setBreaks] = useState(initial?.breaks ?? [])
   const [error, setError] = useState('')
 
   function handleSubmit(event) {
     event.preventDefault()
-    const message = rangeError(start, end, breaks)
+    const message =
+      rangeError(start, end, breaks) ||
+      (start < hours.open || end > hours.close
+        ? `Please choose times between ${formatTime(hours.open)} and ${formatTime(hours.close)}, when we're open.`
+        : '')
     if (message) {
       setError(message)
       return
@@ -105,15 +142,34 @@ function TimeRangeForm({ label, onSubmit }) {
   }
 
   return (
-    <form className="card" onSubmit={handleSubmit} aria-label={`Times for ${label}`}>
+    <form
+      className="card"
+      onSubmit={handleSubmit}
+      // Our own message explains the open hours better than the browser's.
+      noValidate
+      aria-label={`Times for ${label}`}
+    >
+      <p className="note">Open {hours.text}</p>
       <div className="field-row">
         <label className="field">
           From
-          <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+          <input
+            type="time"
+            min={hours.open}
+            max={hours.close}
+            value={start}
+            onChange={(e) => setStart(e.target.value)}
+          />
         </label>
         <label className="field">
           To
-          <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+          <input
+            type="time"
+            min={hours.open}
+            max={hours.close}
+            value={end}
+            onChange={(e) => setEnd(e.target.value)}
+          />
         </label>
       </div>
       <BreaksEditor breaks={breaks} onChange={setBreaks} rangeStart={start} rangeEnd={end} />
@@ -381,6 +437,10 @@ function CustomerPage({ business }) {
     if (lastPickup) calendarDays = daysBetween(today, lastPickup) + 1
   }
 
+  // The business's hours on the date whose times are being asked for.
+  const timesHours =
+    step === 'times' ? hoursOn(weekdayOf(dates[dateIndex]), businessHours) : null
+
   return (
     <section>
       <h2>Book a time</h2>
@@ -434,6 +494,9 @@ function CustomerPage({ business }) {
           <TimeRangeForm
             key={dateIndex}
             label={formatDate(dates[dateIndex])}
+            hours={timesHours}
+            // Dates after the first start with the first date's times.
+            initial={dateIndex > 0 ? fitWithin(customerHours[0], timesHours) : null}
             onSubmit={submitTimes}
           />
         )}

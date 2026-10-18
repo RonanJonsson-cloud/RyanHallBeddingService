@@ -346,13 +346,64 @@ describe('Customer page (from a shared link)', () => {
     expect(screen.getByRole('button', { name: 'Tue Oct 20 11:00 AM – 12:00 PM' })).toBeInTheDocument()
   })
 
-  it('says so when nothing matches', () => {
+  it('keeps the customer within the business hours', () => {
     renderCustomerLink(business)
     click('Drop-off')
     click('Monday, October 19')
     click('Next')
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: '18:00' } })
+
+    // The form shows the hours and starts filled in with them.
+    expect(screen.getByText('Open 9:00 AM – 5:00 PM')).toBeInTheDocument()
+    expect(screen.getByLabelText('From')).toHaveValue('09:00')
+    expect(screen.getByLabelText('To')).toHaveValue('17:00')
+
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '16:00' } })
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '20:00' } })
+    click('Send')
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Please choose times between 9:00 AM and 5:00 PM, when we're open.",
+    )
+    // Still on the same question.
+    expect(screen.getByLabelText('From')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '08:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '10:00' } })
+    click('Send')
+    expect(screen.getByRole('alert')).toHaveTextContent('between 9:00 AM and 5:00 PM')
+
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '16:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '17:00' } })
+    click('Send')
+    expect(screen.getByText('4:00 PM – 5:00 PM')).toBeInTheDocument()
+  })
+
+  it("shows each date's own hours, including busy times", () => {
+    renderCustomerLink({
+      ...business,
+      hours: [
+        { day: 'Monday', start: '09:00', end: '17:00', breaks: [{ start: '12:00', end: '13:00' }] },
+        { day: 'Wednesday', start: '13:00', end: '18:00', breaks: [] },
+      ],
+    })
+    click('Pickup')
+    click('Monday, October 19')
+    click('Wednesday, October 21')
+    click('Next')
+    expect(screen.getByText('Open 9:00 AM – 5:00 PM (busy 12:00 PM – 1:00 PM)')).toBeInTheDocument()
+    click('Send')
+    expect(screen.getByText('Open 1:00 PM – 6:00 PM')).toBeInTheDocument()
+    // Monday's 9–5 is copied over, trimmed to Wednesday's hours.
+    expect(screen.getByLabelText('From')).toHaveValue('13:00')
+    expect(screen.getByLabelText('To')).toHaveValue('17:00')
+  })
+
+  it('says so when nothing matches', () => {
+    // By 6 PM, every time today has passed.
+    vi.setSystemTime(new Date(2026, 9, 19, 18, 0))
+    renderCustomerLink(business)
+    click('Drop-off')
+    click('Monday, October 19')
+    click('Next')
     click('Send')
 
     expect(screen.getByText(/none of those times line up/)).toBeInTheDocument()
@@ -729,5 +780,99 @@ describe('Customer page: calendar length for drop-off and pickup', () => {
     click('Pickup')
     expect(screen.getByRole('button', { name: 'Monday, November 9' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: /November 16/ })).not.toBeInTheDocument()
+  })
+})
+
+describe('Customer page: later dates start with the first date\'s times', () => {
+  const business = {
+    name: 'Ryan Hall Bedding Service',
+    hours: [
+      { day: 'Monday', start: '09:00', end: '17:00', breaks: [] },
+      { day: 'Tuesday', start: '09:00', end: '17:00', breaks: [] },
+      { day: 'Wednesday', start: '13:00', end: '18:00', breaks: [] },
+    ],
+  }
+
+  function startPickup(...dates) {
+    renderCustomerLink(business)
+    click('Pickup')
+    for (const date of dates) click(date)
+    click('Next')
+  }
+
+  it('copies the times and busy times to the next dates', () => {
+    startPickup('Monday, October 19', 'Tuesday, October 20', 'Monday, October 26')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '10:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '15:00' } })
+    click('+ Add a busy time (lunch, class…)')
+    click('Send')
+
+    for (let i = 0; i < 2; i++) {
+      expect(screen.getByLabelText('From')).toHaveValue('10:00')
+      expect(screen.getByLabelText('To')).toHaveValue('15:00')
+      expect(screen.getByLabelText('Break 1 start')).toHaveValue('12:00')
+      expect(screen.getByLabelText('Break 1 end')).toHaveValue('13:00')
+      click('Send')
+    }
+    expect(screen.getAllByText('10:00 AM – 3:00 PM (busy 12:00 PM – 1:00 PM)')).toHaveLength(3)
+  })
+
+  it('can still be changed for each date', () => {
+    startPickup('Monday, October 19', 'Tuesday, October 20')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '10:00' } })
+    click('Send')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '14:00' } })
+    click('Send')
+    expect(screen.getByText('10:00 AM – 5:00 PM')).toBeInTheDocument()
+    expect(screen.getByText('2:00 PM – 5:00 PM')).toBeInTheDocument()
+  })
+
+  it("trims the copied times to a date's hours, dropping busy times outside them", () => {
+    startPickup('Monday, October 19', 'Wednesday, October 21')
+    // Monday 10 AM – 3 PM, busy at lunch; Wednesday opens at 1 PM.
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '10:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '15:00' } })
+    click('+ Add a busy time (lunch, class…)')
+    click('Send')
+
+    expect(screen.getByLabelText('From')).toHaveValue('13:00')
+    expect(screen.getByLabelText('To')).toHaveValue('15:00')
+    expect(screen.queryByLabelText('Break 1 start')).not.toBeInTheDocument()
+  })
+
+  it("uses the date's own hours when the first date's times don't overlap them", () => {
+    startPickup('Monday, October 19', 'Wednesday, October 21')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '11:00' } })
+    click('Send')
+
+    expect(screen.getByLabelText('From')).toHaveValue('13:00')
+    expect(screen.getByLabelText('To')).toHaveValue('18:00')
+  })
+
+  it('starts the pickup dates fresh, then copies from the first pickup date', () => {
+    renderCustomerLink({
+      ...business,
+      offerAppointments: false,
+      handoffsTogether: true,
+      turnaroundMinutes: 60,
+    })
+    click('Monday, October 19')
+    click('Next')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '10:00' } })
+    click('Send')
+
+    click('Tuesday, October 20')
+    click('Monday, October 26')
+    click('Next')
+    // First pickup date: the business's hours, not the drop-off's times.
+    expect(screen.getByLabelText('From')).toHaveValue('09:00')
+    expect(screen.getByLabelText('To')).toHaveValue('17:00')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '15:00' } })
+    click('Send')
+    // Second pickup date: copied from the first pickup date.
+    expect(screen.getByLabelText('From')).toHaveValue('15:00')
+    expect(screen.getByLabelText('To')).toHaveValue('17:00')
   })
 })
