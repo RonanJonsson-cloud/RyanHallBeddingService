@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import BreaksEditor, { defaultBreak } from './BreaksEditor.jsx'
 import SharePanel from './SharePanel.jsx'
-import { DAYS, formatRange, rangeError, sortRanges } from './scheduling.js'
+import {
+  APPOINTMENT_LENGTHS,
+  DAYS,
+  HANDOFF_MINUTES,
+  formatDuration,
+  formatRange,
+  rangeError,
+  sortRanges,
+} from './scheduling.js'
 
 let nextId = 1
 
@@ -48,7 +56,14 @@ function AddBreakForm({ range, onSave, onCancel }) {
   )
 }
 
-function BusinessPage({ name, onNameChange, hours, onChange }) {
+function BusinessPage({
+  name,
+  onNameChange,
+  appointmentMinutes,
+  onAppointmentMinutesChange,
+  hours,
+  onChange,
+}) {
   const [day, setDay] = useState('Monday')
   const [start, setStart] = useState('09:00')
   const [end, setEnd] = useState('17:00')
@@ -89,6 +104,22 @@ function BusinessPage({ name, onNameChange, hours, onChange }) {
             onChange={(e) => onNameChange(e.target.value)}
           />
         </label>
+        <label className="field">
+          Appointment length
+          <select
+            value={appointmentMinutes}
+            onChange={(e) => onAppointmentMinutesChange(Number(e.target.value))}
+          >
+            {APPOINTMENT_LENGTHS.map((minutes) => (
+              <option key={minutes} value={minutes}>
+                {formatDuration(minutes)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <p className="note">
+          Pickups and drop-offs always take {formatDuration(HANDOFF_MINUTES)}.
+        </p>
       </section>
 
       <section>
@@ -199,7 +230,7 @@ function BusinessPage({ name, onNameChange, hours, onChange }) {
         )}
       </section>
 
-      <SharePanel name={name} hours={hours} />
+      <SharePanel name={name} appointmentMinutes={appointmentMinutes} hours={hours} />
     </>
   )
 }

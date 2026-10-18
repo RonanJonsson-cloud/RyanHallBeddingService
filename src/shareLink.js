@@ -1,9 +1,10 @@
-import { DAYS, isValidRange } from './scheduling.js'
+import { DAYS, DEFAULT_APPOINTMENT_MINUTES, isValidRange } from './scheduling.js'
 
 // With no database yet, the business's name and hours travel inside the
 // customer link itself: ?b=<compact JSON, base64url-encoded>.
 export const LINK_PARAM = 'b'
 const MAX_NAME_LENGTH = 80
+const MAX_APPOINTMENT_MINUTES = 8 * 60
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 
 function toBase64Url(text) {
@@ -20,11 +21,12 @@ function fromBase64Url(encoded) {
   return new TextDecoder().decode(bytes)
 }
 
-// { name, hours: [{ day, start, end, breaks }] } -> short string.
+// { name, appointmentMinutes, hours: [{ day, start, end, breaks }] } -> short string.
 // Days become 0–6 and times drop their colons to keep the QR code small.
-export function encodeBusiness({ name, hours }) {
+export function encodeBusiness({ name, appointmentMinutes = DEFAULT_APPOINTMENT_MINUTES, hours }) {
   const compact = {
     n: name.trim().slice(0, MAX_NAME_LENGTH),
+    a: appointmentMinutes,
     h: hours.map((range) => [
       DAYS.indexOf(range.day),
       range.start.replace(':', ''),
@@ -48,6 +50,17 @@ export function decodeBusiness(encoded) {
     const compact = JSON.parse(fromBase64Url(encoded))
     if (typeof compact?.n !== 'string' || !Array.isArray(compact.h)) return null
 
+    // Links made before appointment lengths existed have no `a`.
+    const appointmentMinutes = compact.a ?? DEFAULT_APPOINTMENT_MINUTES
+    if (
+      !Number.isInteger(appointmentMinutes) ||
+      appointmentMinutes < 5 ||
+      appointmentMinutes > MAX_APPOINTMENT_MINUTES ||
+      appointmentMinutes % 5 !== 0
+    ) {
+      return null
+    }
+
     const hours = compact.h.map((entry) => {
       if (!Array.isArray(entry) || entry.length < 3 || entry.length % 2 === 0) throw new Error()
       const [dayIndex, ...times] = entry
@@ -62,7 +75,7 @@ export function decodeBusiness(encoded) {
       return { day, start, end, breaks }
     })
 
-    return { name: compact.n.slice(0, MAX_NAME_LENGTH), hours }
+    return { name: compact.n.slice(0, MAX_NAME_LENGTH), appointmentMinutes, hours }
   } catch {
     return null
   }

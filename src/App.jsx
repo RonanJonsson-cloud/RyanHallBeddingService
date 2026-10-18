@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import BusinessPage from './BusinessPage.jsx'
 import CustomerPage from './CustomerPage.jsx'
+import { DEFAULT_APPOINTMENT_MINUTES } from './scheduling.js'
 import { LINK_PARAM, decodeBusiness } from './shareLink.js'
 
 // Opened from a customer link or QR code: show only that business's booking chat.
@@ -29,7 +30,10 @@ function CustomerView({ code }) {
         <p className="tagline">Book a time · RHBScheduler</p>
       </header>
       <main className="content">
-        <CustomerPage businessHours={business.hours} />
+        <CustomerPage
+          businessHours={business.hours}
+          appointmentMinutes={business.appointmentMinutes}
+        />
       </main>
     </div>
   )
@@ -39,6 +43,7 @@ function CustomerView({ code }) {
 function BusinessView() {
   // Kept in memory only: refreshing the page clears it.
   const [name, setName] = useState('Ryan Hall Bedding Service')
+  const [appointmentMinutes, setAppointmentMinutes] = useState(DEFAULT_APPOINTMENT_MINUTES)
   const [businessHours, setBusinessHours] = useState([])
 
   return (
@@ -51,6 +56,8 @@ function BusinessView() {
         <BusinessPage
           name={name}
           onNameChange={setName}
+          appointmentMinutes={appointmentMinutes}
+          onAppointmentMinutesChange={setAppointmentMinutes}
           hours={businessHours}
           onChange={setBusinessHours}
         />

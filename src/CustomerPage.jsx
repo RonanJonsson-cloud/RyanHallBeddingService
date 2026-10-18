@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import BreaksEditor from './BreaksEditor.jsx'
 import {
   DAYS,
+  DEFAULT_APPOINTMENT_MINUTES,
   SERVICES,
+  formatDuration,
   formatRange,
   formatRangeWithBreaks,
   rangeError,
+  serviceMinutes,
   suggestSlots,
 } from './scheduling.js'
 
@@ -59,7 +62,7 @@ function TimeRangeForm({ day, onSubmit }) {
   )
 }
 
-function CustomerPage({ businessHours }) {
+function CustomerPage({ businessHours, appointmentMinutes = DEFAULT_APPOINTMENT_MINUTES }) {
   const [messages, setMessages] = useState([GREETING])
   const [step, setStep] = useState('service')
   const [service, setService] = useState('')
@@ -81,7 +84,12 @@ function CustomerPage({ businessHours }) {
     setService(choice)
     say(
       { from: 'user', text: choice },
-      { from: 'bot', text: 'Which days are you available? Tap all that work, then press Next.' },
+      {
+        from: 'bot',
+        text: `${choice === 'Appointment' ? 'Appointments' : `${choice}s`} take ${formatDuration(
+          serviceMinutes(choice, appointmentMinutes),
+        )}. Which days are you available? Tap all that work, then press Next.`,
+      },
     )
     setStep('days')
   }
@@ -124,7 +132,9 @@ function CustomerPage({ businessHours }) {
       return
     }
 
-    const matches = suggestSlots(businessHours, updated)
+    const matches = suggestSlots(businessHours, updated, {
+      minutes: serviceMinutes(service, appointmentMinutes),
+    })
     setSlots(matches)
     if (matches.length === 0) {
       say({

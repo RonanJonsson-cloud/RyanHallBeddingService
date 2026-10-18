@@ -10,8 +10,25 @@ export const DAYS = [
 
 export const SERVICES = ['Appointment', 'Pickup', 'Drop-off']
 
-// Every suggested slot is this long.
-export const SLOT_MINUTES = 30
+// Pickups and drop-offs are quick hand-offs; the business chooses how
+// long an appointment takes.
+export const HANDOFF_MINUTES = 5
+export const DEFAULT_APPOINTMENT_MINUTES = 30
+export const APPOINTMENT_LENGTHS = [15, 30, 45, 60, 90, 120]
+
+export function serviceMinutes(service, appointmentMinutes) {
+  return service === 'Appointment' ? appointmentMinutes : HANDOFF_MINUTES
+}
+
+// 5 -> "5 minutes", 60 -> "1 hour", 90 -> "1 hour 30 minutes"
+export function formatDuration(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60)
+  const minutes = totalMinutes % 60
+  const parts = []
+  if (hours) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`)
+  if (minutes) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`)
+  return parts.join(' ')
+}
 
 // "09:30" -> 570
 export function toMinutes(time) {
@@ -99,7 +116,7 @@ export function sortRanges(ranges) {
 
 // Windows where both the business and the customer are free (breaks
 // removed), keeping only windows long enough for one slot.
-export function findOverlaps(businessHours, customerHours) {
+export function findOverlaps(businessHours, customerHours, minutes = DEFAULT_APPOINTMENT_MINUTES) {
   const businessFree = businessHours.flatMap(freeWindows)
   const customerFree = customerHours.flatMap(freeWindows)
   const overlaps = []
@@ -108,7 +125,7 @@ export function findOverlaps(businessHours, customerHours) {
       if (business.day !== customer.day) continue
       const start = Math.max(toMinutes(business.start), toMinutes(customer.start))
       const end = Math.min(toMinutes(business.end), toMinutes(customer.end))
-      if (end - start >= SLOT_MINUTES) {
+      if (end - start >= minutes) {
         overlaps.push({ day: business.day, start: toTime(start), end: toTime(end) })
       }
     }
@@ -116,22 +133,28 @@ export function findOverlaps(businessHours, customerHours) {
   return sortRanges(overlaps)
 }
 
-// Up to `max` slots, all on the earliest day (Monday first) that has a
-// match, spread out across that day: first slot, last slot, and evenly
-// spaced ones in between.
-export function suggestSlots(businessHours, customerHours, max = 3) {
-  const overlaps = findOverlaps(businessHours, customerHours)
+// Up to `max` slots of `minutes` each, all on the earliest day (Monday
+// first) that has a match, spread out across that day: first slot, last
+// slot, and evenly spaced ones in between. Short slots can start every 15
+// minutes and longer ones every 30, so suggested times stay easy to read.
+export function suggestSlots(
+  businessHours,
+  customerHours,
+  { minutes = DEFAULT_APPOINTMENT_MINUTES, max = 3 } = {},
+) {
+  const overlaps = findOverlaps(businessHours, customerHours, minutes)
   if (overlaps.length === 0) return []
   const earliestDay = overlaps[0].day
+  const startEvery = minutes >= 30 ? 30 : 15
 
   const slots = []
   const seen = new Set()
   for (const window of overlaps.filter((o) => o.day === earliestDay)) {
-    const last = toMinutes(window.end) - SLOT_MINUTES
-    for (let start = toMinutes(window.start); start <= last; start += SLOT_MINUTES) {
+    const last = toMinutes(window.end) - minutes
+    for (let start = toMinutes(window.start); start <= last; start += startEvery) {
       if (seen.has(start)) continue
       seen.add(start)
-      slots.push({ day: earliestDay, start: toTime(start), end: toTime(start + SLOT_MINUTES) })
+      slots.push({ day: earliestDay, start: toTime(start), end: toTime(start + minutes) })
     }
   }
   slots.sort((a, b) => toMinutes(a.start) - toMinutes(b.start))

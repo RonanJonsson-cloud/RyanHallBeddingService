@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   findOverlaps,
+  formatDuration,
   formatRangeWithBreaks,
   formatTime,
   freeWindows,
@@ -14,6 +15,15 @@ describe('formatTime', () => {
     expect(formatTime('12:30')).toBe('12:30 PM')
     expect(formatTime('00:15')).toBe('12:15 AM')
     expect(formatTime('17:45')).toBe('5:45 PM')
+  })
+})
+
+describe('formatDuration', () => {
+  it('reads naturally', () => {
+    expect(formatDuration(5)).toBe('5 minutes')
+    expect(formatDuration(60)).toBe('1 hour')
+    expect(formatDuration(90)).toBe('1 hour 30 minutes')
+    expect(formatDuration(120)).toBe('2 hours')
   })
 })
 
@@ -182,6 +192,41 @@ describe('suggestSlots', () => {
       { day: 'Monday', start: '09:00', end: '09:30' },
       { day: 'Monday', start: '09:30', end: '10:00' },
     ])
+  })
+
+  it('makes 5-minute slots that start every 15 minutes', () => {
+    const business = [{ day: 'Monday', start: '09:00', end: '10:00' }]
+    const customer = [{ day: 'Monday', start: '09:00', end: '09:40' }]
+    expect(suggestSlots(business, customer, { minutes: 5 })).toEqual([
+      { day: 'Monday', start: '09:00', end: '09:05' },
+      { day: 'Monday', start: '09:15', end: '09:20' },
+      { day: 'Monday', start: '09:30', end: '09:35' },
+    ])
+  })
+
+  it('makes long appointments that start every 30 minutes', () => {
+    const business = [{ day: 'Monday', start: '09:00', end: '12:00' }]
+    const customer = [{ day: 'Monday', start: '09:00', end: '12:00' }]
+    expect(suggestSlots(business, customer, { minutes: 90 })).toEqual([
+      { day: 'Monday', start: '09:00', end: '10:30' },
+      { day: 'Monday', start: '10:00', end: '11:30' },
+      { day: 'Monday', start: '10:30', end: '12:00' },
+    ])
+  })
+
+  it('skips a day whose free time is shorter than the appointment', () => {
+    const business = [
+      { day: 'Monday', start: '09:00', end: '10:00' },
+      { day: 'Tuesday', start: '09:00', end: '17:00' },
+    ]
+    const customer = [
+      { day: 'Monday', start: '09:00', end: '10:00' },
+      { day: 'Tuesday', start: '15:00', end: '17:00' },
+    ]
+    expect(suggestSlots(business, customer, { minutes: 120 })).toEqual([
+      { day: 'Tuesday', start: '15:00', end: '17:00' },
+    ])
+    expect(suggestSlots(business, customer, { minutes: 5 })[0].day).toBe('Monday')
   })
 
   it('returns nothing when there is no match', () => {

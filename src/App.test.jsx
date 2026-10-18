@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import App from './App.jsx'
-import { encodeBusiness } from './shareLink.js'
+import { decodeBusiness, encodeBusiness } from './shareLink.js'
 
 function click(name) {
   fireEvent.click(screen.getByRole('button', { name }))
@@ -107,6 +107,7 @@ describe('Share panel', () => {
     fireEvent.change(screen.getByLabelText('Business name'), {
       target: { value: "Ryan's Laundry" },
     })
+    fireEvent.change(screen.getByLabelText('Appointment length'), { target: { value: '45' } })
     addBusinessHours('Tuesday', '10:00', '14:00')
 
     const link = screen.getByLabelText('Customer link').value
@@ -116,6 +117,8 @@ describe('Share panel', () => {
       'href',
       link,
     )
+
+    expect(decodeBusiness(new URL(link).searchParams.get('b')).appointmentMinutes).toBe(45)
 
     // Open that exact link as a customer.
     unmount()
@@ -135,6 +138,7 @@ describe('Share panel', () => {
 describe('Customer page (from a shared link)', () => {
   const business = {
     name: 'Ryan Hall Bedding Service',
+    appointmentMinutes: 30,
     hours: [
       { day: 'Monday', start: '09:00', end: '17:00', breaks: [] },
       { day: 'Wednesday', start: '09:00', end: '17:00', breaks: [] },
@@ -152,7 +156,8 @@ describe('Customer page (from a shared link)', () => {
 
   it('walks through the chat and suggests times across the earliest matching day', () => {
     renderCustomerLink(business)
-    click('Pickup')
+    click('Appointment')
+    expect(screen.getByText(/^Appointments take 30 minutes\./)).toBeInTheDocument()
     click('Wednesday')
     click('Monday')
     click('Next')
@@ -173,7 +178,7 @@ describe('Customer page (from a shared link)', () => {
 
     expect(
       screen.getByText(
-        'The earliest day that works is Monday. Here are 3 times across that day for your pickup:',
+        'The earliest day that works is Monday. Here are 3 times across that day for your appointment:',
       ),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Monday 9:00 AM – 9:30 AM' })).toBeInTheDocument()
@@ -183,8 +188,41 @@ describe('Customer page (from a shared link)', () => {
 
     click('Monday 1:30 PM – 2:00 PM')
     expect(
-      screen.getByText(/You're all set: Pickup on Monday 1:30 PM – 2:00 PM/),
+      screen.getByText(/You're all set: Appointment on Monday 1:30 PM – 2:00 PM/),
     ).toBeInTheDocument()
+  })
+
+  it('suggests 5-minute slots for a pickup', () => {
+    renderCustomerLink(business)
+    click('Pickup')
+    expect(screen.getByText(/^Pickups take 5 minutes\./)).toBeInTheDocument()
+    click('Monday')
+    click('Next')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '17:00' } })
+    click('+ Add a busy time (lunch, class…)')
+    click('Send')
+
+    expect(screen.getByRole('button', { name: 'Monday 9:00 AM – 9:05 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday 1:30 PM – 1:35 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday 4:45 PM – 4:50 PM' })).toBeInTheDocument()
+  })
+
+  it("uses the business's appointment length", () => {
+    renderCustomerLink({
+      name: 'Ryan Hall Bedding Service',
+      appointmentMinutes: 60,
+      hours: [{ day: 'Tuesday', start: '09:00', end: '12:00', breaks: [] }],
+    })
+    click('Appointment')
+    expect(screen.getByText(/^Appointments take 1 hour\./)).toBeInTheDocument()
+    click('Tuesday')
+    click('Next')
+    click('Send')
+
+    expect(screen.getByRole('button', { name: 'Tuesday 9:00 AM – 10:00 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tuesday 10:00 AM – 11:00 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tuesday 11:00 AM – 12:00 PM' })).toBeInTheDocument()
   })
 
   it('says so when nothing matches', () => {

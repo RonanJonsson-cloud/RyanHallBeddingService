@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { customerLink, decodeBusiness, encodeBusiness } from './shareLink.js'
 
+const encode = (value) =>
+  btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
 const business = {
   name: 'Café Ryan — Bedding',
+  appointmentMinutes: 45,
   hours: [
     {
       day: 'Monday',
@@ -22,6 +26,11 @@ describe('share links', () => {
     expect(decodeBusiness(encodeBusiness(business))).toEqual(business)
   })
 
+  it('treats links made before appointment lengths as 30 minutes', () => {
+    const oldLink = encode({ n: 'X', h: [[0, '0900', '1700']] })
+    expect(decodeBusiness(oldLink).appointmentMinutes).toBe(30)
+  })
+
   it('uses only URL-safe characters', () => {
     expect(encodeBusiness(business)).toMatch(/^[\w-]+$/)
   })
@@ -37,12 +46,16 @@ describe('share links', () => {
   })
 
   it('rejects codes with impossible hours', () => {
-    const encode = (value) =>
-      btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
     expect(decodeBusiness(encode({ n: 'X', h: [[9, '0900', '1700']] }))).toBeNull()
     expect(decodeBusiness(encode({ n: 'X', h: [[0, '1700', '0900']] }))).toBeNull()
     expect(decodeBusiness(encode({ n: 'X', h: [[0, '2500', '2600']] }))).toBeNull()
     expect(decodeBusiness(encode({ n: 'X', h: [[0, '0900', '1700', '1200']] }))).toBeNull()
     expect(decodeBusiness(encode({ n: 42, h: [] }))).toBeNull()
+  })
+
+  it('rejects impossible appointment lengths', () => {
+    for (const a of [0, 7, -30, 1000, '30', 12.5]) {
+      expect(decodeBusiness(encode({ n: 'X', a, h: [] }))).toBeNull()
+    }
   })
 })
