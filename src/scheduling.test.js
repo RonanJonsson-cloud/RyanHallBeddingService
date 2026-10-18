@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
+  PAIRED_SERVICE,
+  availableServices,
   findOverlaps,
   formatDuration,
   formatRangeWithBreaks,
   formatTime,
   freeWindows,
   rangeError,
+  suggestDropOffs,
+  suggestPickups,
   suggestSlots,
 } from './scheduling.js'
 
@@ -24,6 +28,8 @@ describe('formatDuration', () => {
     expect(formatDuration(60)).toBe('1 hour')
     expect(formatDuration(90)).toBe('1 hour 30 minutes')
     expect(formatDuration(120)).toBe('2 hours')
+    expect(formatDuration(1440)).toBe('1 day')
+    expect(formatDuration(2880)).toBe('2 days')
   })
 })
 
@@ -233,5 +239,77 @@ describe('suggestSlots', () => {
     const business = [{ day: 'Monday', start: '09:00', end: '12:00' }]
     const customer = [{ day: 'Monday', start: '13:00', end: '15:00' }]
     expect(suggestSlots(business, customer)).toEqual([])
+  })
+})
+
+describe('availableServices', () => {
+  it('offers only appointments when pickups and drop-offs are off', () => {
+    expect(availableServices({ offerHandoffs: false, handoffsTogether: true })).toEqual([
+      'Appointment',
+    ])
+  })
+
+  it('offers pickups and drop-offs separately', () => {
+    expect(availableServices({ offerHandoffs: true, handoffsTogether: false })).toEqual([
+      'Appointment',
+      'Pickup',
+      'Drop-off',
+    ])
+  })
+
+  it('offers them as one paired booking when scheduled together', () => {
+    expect(availableServices({ offerHandoffs: true, handoffsTogether: true })).toEqual([
+      'Appointment',
+      PAIRED_SERVICE,
+    ])
+  })
+})
+
+describe('paired drop-off and pickup', () => {
+  const business = [{ day: 'Monday', start: '09:00', end: '17:00' }]
+  const customer = [
+    { day: 'Monday', start: '09:00', end: '12:00' },
+    { day: 'Monday', start: '15:00', end: '17:00' },
+  ]
+
+  it('only offers drop-offs that leave room for a pickup afterwards', () => {
+    expect(suggestDropOffs(business, customer, { turnaroundMinutes: 180 })).toEqual([
+      { day: 'Monday', start: '09:00', end: '09:05' },
+      { day: 'Monday', start: '10:30', end: '10:35' },
+      { day: 'Monday', start: '11:45', end: '11:50' },
+    ])
+  })
+
+  it('offers pickups at least the turnaround time after the drop-off', () => {
+    const dropOff = { day: 'Monday', start: '11:45', end: '11:50' }
+    expect(suggestPickups(business, customer, dropOff, { turnaroundMinutes: 180 })).toEqual([
+      { day: 'Monday', start: '15:00', end: '15:05' },
+      { day: 'Monday', start: '16:00', end: '16:05' },
+      { day: 'Monday', start: '16:45', end: '16:50' },
+    ])
+  })
+
+  it('carries a long turnaround over to a later day', () => {
+    const hours = [
+      { day: 'Monday', start: '09:00', end: '10:00' },
+      { day: 'Tuesday', start: '09:00', end: '10:00' },
+    ]
+    expect(suggestDropOffs(hours, hours, { turnaroundMinutes: 1440 })).toEqual([
+      { day: 'Monday', start: '09:00', end: '09:05' },
+      { day: 'Monday', start: '09:15', end: '09:20' },
+      { day: 'Monday', start: '09:30', end: '09:35' },
+    ])
+    const dropOff = { day: 'Monday', start: '09:30', end: '09:35' }
+    expect(suggestPickups(hours, hours, dropOff, { turnaroundMinutes: 1440 })).toEqual([
+      { day: 'Tuesday', start: '09:45', end: '09:50' },
+    ])
+  })
+
+  it('offers nothing when the turnaround cannot fit', () => {
+    const hours = [
+      { day: 'Monday', start: '09:00', end: '10:00' },
+      { day: 'Tuesday', start: '09:00', end: '10:00' },
+    ]
+    expect(suggestDropOffs(hours, hours, { turnaroundMinutes: 2880 })).toEqual([])
   })
 })

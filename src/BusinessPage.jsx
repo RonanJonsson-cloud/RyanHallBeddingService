@@ -5,6 +5,7 @@ import {
   APPOINTMENT_LENGTHS,
   DAYS,
   HANDOFF_MINUTES,
+  TURNAROUND_OPTIONS,
   formatDuration,
   formatRange,
   rangeError,
@@ -56,14 +57,93 @@ function AddBreakForm({ range, onSave, onCancel }) {
   )
 }
 
-function BusinessPage({
-  name,
-  onNameChange,
-  appointmentMinutes,
-  onAppointmentMinutesChange,
-  hours,
-  onChange,
-}) {
+function SettingsCard({ settings, onSettingsChange }) {
+  function set(field, value) {
+    onSettingsChange({ ...settings, [field]: value })
+  }
+
+  return (
+    <section className="card">
+      <label className="field">
+        Business name
+        <input
+          type="text"
+          value={settings.name}
+          maxLength={80}
+          onChange={(e) => set('name', e.target.value)}
+        />
+      </label>
+      <label className="field">
+        Appointment length
+        <select
+          value={settings.appointmentMinutes}
+          onChange={(e) => set('appointmentMinutes', Number(e.target.value))}
+        >
+          {APPOINTMENT_LENGTHS.map((minutes) => (
+            <option key={minutes} value={minutes}>
+              {formatDuration(minutes)}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <fieldset className="option-group">
+        <legend>Pickups and drop-offs</legend>
+        <div className="option-box">
+          <label className="check">
+            <input
+              type="checkbox"
+              checked={settings.offerHandoffs}
+              onChange={(e) => set('offerHandoffs', e.target.checked)}
+            />
+            Offer pickups and drop-offs
+          </label>
+          <p className="note">
+            {settings.offerHandoffs
+              ? `Each one takes ${formatDuration(HANDOFF_MINUTES)}.`
+              : 'Customers can only book appointments.'}
+          </p>
+
+          {settings.offerHandoffs && (
+            <>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={settings.handoffsTogether}
+                  onChange={(e) => set('handoffsTogether', e.target.checked)}
+                />
+                Schedule drop-off and pickup together
+              </label>
+              <p className="note">
+                {settings.handoffsTogether
+                  ? 'Customers must book both: a drop-off first, then a pickup.'
+                  : 'Customers book a pickup or a drop-off on its own.'}
+              </p>
+            </>
+          )}
+
+          {settings.offerHandoffs && settings.handoffsTogether && (
+            <label className="field">
+              Minimum time between drop-off and pickup
+              <select
+                value={settings.turnaroundMinutes}
+                onChange={(e) => set('turnaroundMinutes', Number(e.target.value))}
+              >
+                {TURNAROUND_OPTIONS.map((minutes) => (
+                  <option key={minutes} value={minutes}>
+                    {formatDuration(minutes)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      </fieldset>
+    </section>
+  )
+}
+
+function BusinessPage({ settings, onSettingsChange, hours, onChange }) {
   const [day, setDay] = useState('Monday')
   const [start, setStart] = useState('09:00')
   const [end, setEnd] = useState('17:00')
@@ -94,33 +174,7 @@ function BusinessPage({
 
   return (
     <>
-      <section className="card">
-        <label className="field">
-          Business name
-          <input
-            type="text"
-            value={name}
-            maxLength={80}
-            onChange={(e) => onNameChange(e.target.value)}
-          />
-        </label>
-        <label className="field">
-          Appointment length
-          <select
-            value={appointmentMinutes}
-            onChange={(e) => onAppointmentMinutesChange(Number(e.target.value))}
-          >
-            {APPOINTMENT_LENGTHS.map((minutes) => (
-              <option key={minutes} value={minutes}>
-                {formatDuration(minutes)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <p className="note">
-          Pickups and drop-offs always take {formatDuration(HANDOFF_MINUTES)}.
-        </p>
-      </section>
+      <SettingsCard settings={settings} onSettingsChange={onSettingsChange} />
 
       <section>
         <h2>Your available hours</h2>
@@ -230,7 +284,7 @@ function BusinessPage({
         )}
       </section>
 
-      <SharePanel name={name} appointmentMinutes={appointmentMinutes} hours={hours} />
+      <SharePanel business={{ ...settings, hours }} />
     </>
   )
 }

@@ -8,23 +8,36 @@ export const DAYS = [
   'Sunday',
 ]
 
-export const SERVICES = ['Appointment', 'Pickup', 'Drop-off']
+// Booked as one: a drop-off first, then a pickup at least
+// `turnaroundMinutes` later (time to wash the bedding).
+export const PAIRED_SERVICE = 'Drop-off & pickup'
 
 // Pickups and drop-offs are quick hand-offs; the business chooses how
 // long an appointment takes.
 export const HANDOFF_MINUTES = 5
 export const DEFAULT_APPOINTMENT_MINUTES = 30
 export const APPOINTMENT_LENGTHS = [15, 30, 45, 60, 90, 120]
+export const DEFAULT_TURNAROUND_MINUTES = 180
+export const TURNAROUND_OPTIONS = [60, 120, 180, 240, 360, 720, 1440, 2880]
 
 export function serviceMinutes(service, appointmentMinutes) {
   return service === 'Appointment' ? appointmentMinutes : HANDOFF_MINUTES
 }
 
-// 5 -> "5 minutes", 60 -> "1 hour", 90 -> "1 hour 30 minutes"
+// What a customer can choose from, given the business's settings.
+export function availableServices({ offerHandoffs, handoffsTogether }) {
+  if (!offerHandoffs) return ['Appointment']
+  if (handoffsTogether) return ['Appointment', PAIRED_SERVICE]
+  return ['Appointment', 'Pickup', 'Drop-off']
+}
+
+// 5 -> "5 minutes", 90 -> "1 hour 30 minutes", 1440 -> "1 day"
 export function formatDuration(totalMinutes) {
-  const hours = Math.floor(totalMinutes / 60)
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
   const minutes = totalMinutes % 60
   const parts = []
+  if (days) parts.push(`${days} day${days === 1 ? '' : 's'}`)
   if (hours) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`)
   if (minutes) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`)
   return parts.join(' ')
@@ -133,34 +146,82 @@ export function findOverlaps(businessHours, customerHours, minutes = DEFAULT_APP
   return sortRanges(overlaps)
 }
 
-// Up to `max` slots of `minutes` each, all on the earliest day (Monday
-// first) that has a match, spread out across that day: first slot, last
-// slot, and evenly spaced ones in between. Short slots can start every 15
-// minutes and longer ones every 30, so suggested times stay easy to read.
+// Minutes since Monday 12:00 AM, so times on different days can be compared.
+function weekMinutes(day, time) {
+  return DAYS.indexOf(day) * 24 * 60 + toMinutes(time)
+}
+
+// Every slot of `minutes` that both sides are free for, in week order.
+// Short slots can start every 15 minutes and longer ones every 30, so
+// suggested times stay easy to read.
+function candidateSlots(businessHours, customerHours, minutes) {
+  const startEvery = minutes >= 30 ? 30 : 15
+  const slots = []
+  const seen = new Set()
+  for (const window of findOverlaps(businessHours, customerHours, minutes)) {
+    const last = toMinutes(window.end) - minutes
+    for (let start = toMinutes(window.start); start <= last; start += startEvery) {
+      const key = `${window.day} ${start}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      slots.push({ day: window.day, start: toTime(start), end: toTime(start + minutes) })
+    }
+  }
+  return slots.sort((a, b) => weekMinutes(a.day, a.start) - weekMinutes(b.day, b.start))
+}
+
+// Up to `max` slots, all on the earliest day that has any, spread out
+// across that day: first slot, last slot, and evenly spaced ones between.
+function spreadOverEarliestDay(slots, max) {
+  if (slots.length === 0) return []
+  const day = slots.filter((slot) => slot.day === slots[0].day)
+  if (day.length <= max) return day
+  if (max === 1) return [day[0]]
+  const step = (day.length - 1) / (max - 1)
+  return Array.from({ length: max }, (_, i) => day[Math.round(i * step)])
+}
+
+// Suggested slots of `minutes` each on the earliest matching day (Monday
+// first). `notBefore` (minutes since Monday 12:00 AM) drops anything earlier.
 export function suggestSlots(
   businessHours,
   customerHours,
-  { minutes = DEFAULT_APPOINTMENT_MINUTES, max = 3 } = {},
+  { minutes = DEFAULT_APPOINTMENT_MINUTES, max = 3, notBefore = 0 } = {},
 ) {
-  const overlaps = findOverlaps(businessHours, customerHours, minutes)
-  if (overlaps.length === 0) return []
-  const earliestDay = overlaps[0].day
-  const startEvery = minutes >= 30 ? 30 : 15
+  const slots = candidateSlots(businessHours, customerHours, minutes).filter(
+    (slot) => weekMinutes(slot.day, slot.start) >= notBefore,
+  )
+  return spreadOverEarliestDay(slots, max)
+}
 
-  const slots = []
-  const seen = new Set()
-  for (const window of overlaps.filter((o) => o.day === earliestDay)) {
-    const last = toMinutes(window.end) - minutes
-    for (let start = toMinutes(window.start); start <= last; start += startEvery) {
-      if (seen.has(start)) continue
-      seen.add(start)
-      slots.push({ day: earliestDay, start: toTime(start), end: toTime(start + minutes) })
-    }
-  }
-  slots.sort((a, b) => toMinutes(a.start) - toMinutes(b.start))
+// Drop-off times for a paired booking: only those that leave room for a
+// pickup at least `turnaroundMinutes` later in the same week.
+export function suggestDropOffs(
+  businessHours,
+  customerHours,
+  { turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES, max = 3 } = {},
+) {
+  const slots = candidateSlots(businessHours, customerHours, HANDOFF_MINUTES)
+  if (slots.length === 0) return []
+  const last = slots[slots.length - 1]
+  const lastStart = weekMinutes(last.day, last.start)
+  const withRoom = slots.filter(
+    (slot) => weekMinutes(slot.day, slot.end) + turnaroundMinutes <= lastStart,
+  )
+  return spreadOverEarliestDay(withRoom, max)
+}
 
-  if (slots.length <= max) return slots
-  if (max === 1) return [slots[0]]
-  const step = (slots.length - 1) / (max - 1)
-  return Array.from({ length: max }, (_, i) => slots[Math.round(i * step)])
+// Pickup times for a paired booking, at least `turnaroundMinutes` after
+// the chosen drop-off ends.
+export function suggestPickups(
+  businessHours,
+  customerHours,
+  dropOff,
+  { turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES, max = 3 } = {},
+) {
+  return suggestSlots(businessHours, customerHours, {
+    minutes: HANDOFF_MINUTES,
+    max,
+    notBefore: weekMinutes(dropOff.day, dropOff.end) + turnaroundMinutes,
+  })
 }

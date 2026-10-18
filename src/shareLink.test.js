@@ -7,6 +7,9 @@ const encode = (value) =>
 const business = {
   name: 'Café Ryan — Bedding',
   appointmentMinutes: 45,
+  offerHandoffs: true,
+  handoffsTogether: true,
+  turnaroundMinutes: 1440,
   hours: [
     {
       day: 'Monday',
@@ -26,9 +29,20 @@ describe('share links', () => {
     expect(decodeBusiness(encodeBusiness(business))).toEqual(business)
   })
 
-  it('treats links made before appointment lengths as 30 minutes', () => {
+  it('round-trips a business that only offers appointments', () => {
+    const decoded = decodeBusiness(encodeBusiness({ ...business, offerHandoffs: false }))
+    expect(decoded.offerHandoffs).toBe(false)
+    expect(decoded.handoffsTogether).toBe(false)
+  })
+
+  it('fills in defaults for links made before these settings existed', () => {
     const oldLink = encode({ n: 'X', h: [[0, '0900', '1700']] })
-    expect(decodeBusiness(oldLink).appointmentMinutes).toBe(30)
+    expect(decodeBusiness(oldLink)).toMatchObject({
+      appointmentMinutes: 30,
+      offerHandoffs: true,
+      handoffsTogether: false,
+      turnaroundMinutes: 180,
+    })
   })
 
   it('uses only URL-safe characters', () => {
@@ -51,6 +65,15 @@ describe('share links', () => {
     expect(decodeBusiness(encode({ n: 'X', h: [[0, '2500', '2600']] }))).toBeNull()
     expect(decodeBusiness(encode({ n: 'X', h: [[0, '0900', '1700', '1200']] }))).toBeNull()
     expect(decodeBusiness(encode({ n: 42, h: [] }))).toBeNull()
+  })
+
+  it('rejects impossible pickup and drop-off settings', () => {
+    for (const p of [3, -1, '2', true]) {
+      expect(decodeBusiness(encode({ n: 'X', p, h: [] }))).toBeNull()
+    }
+    for (const t of [0, 7, 99999, '180']) {
+      expect(decodeBusiness(encode({ n: 'X', p: 2, t, h: [] }))).toBeNull()
+    }
   })
 
   it('rejects impossible appointment lengths', () => {

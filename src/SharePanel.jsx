@@ -34,7 +34,8 @@ function downloadPng(svg, fileName) {
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`
 }
 
-function SharePanel({ name, appointmentMinutes, hours }) {
+function SharePanel({ business }) {
+  const { name, hours } = business
   const [copied, setCopied] = useState(false)
   const qrRef = useRef(null)
   const inputRef = useRef(null)
@@ -48,7 +49,7 @@ function SharePanel({ name, appointmentMinutes, hours }) {
     )
   }
 
-  const link = customerLink({ name, appointmentMinutes, hours })
+  const link = customerLink(business)
 
   async function handleCopy() {
     try {
@@ -102,7 +103,7 @@ function SharePanel({ name, appointmentMinutes, hours }) {
       </div>
 
       <p className="note">
-        Your hours and appointment length are built into this link. If you change them, share
+        Your hours and settings are built into this link. If you change them, share
         the new link or QR code — older ones keep showing the old settings.
       </p>
     </section>

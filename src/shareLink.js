@@ -1,10 +1,21 @@
-import { DAYS, DEFAULT_APPOINTMENT_MINUTES, isValidRange } from './scheduling.js'
+import {
+  DAYS,
+  DEFAULT_APPOINTMENT_MINUTES,
+  DEFAULT_TURNAROUND_MINUTES,
+  isValidRange,
+} from './scheduling.js'
 
 // With no database yet, the business's name and hours travel inside the
 // customer link itself: ?b=<compact JSON, base64url-encoded>.
 export const LINK_PARAM = 'b'
 const MAX_NAME_LENGTH = 80
 const MAX_APPOINTMENT_MINUTES = 8 * 60
+const MAX_TURNAROUND_MINUTES = 7 * 24 * 60
+
+// How pickups and drop-offs are offered, stored as one small number.
+const HANDOFFS_OFF = 0
+const HANDOFFS_SEPARATE = 1
+const HANDOFFS_TOGETHER = 2
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 
 function toBase64Url(text) {
@@ -21,12 +32,27 @@ function fromBase64Url(encoded) {
   return new TextDecoder().decode(bytes)
 }
 
-// { name, appointmentMinutes, hours: [{ day, start, end, breaks }] } -> short string.
+// { name, appointmentMinutes, offerHandoffs, handoffsTogether, turnaroundMinutes,
+//   hours: [{ day, start, end, breaks }] } -> short string.
 // Days become 0–6 and times drop their colons to keep the QR code small.
-export function encodeBusiness({ name, appointmentMinutes = DEFAULT_APPOINTMENT_MINUTES, hours }) {
+export function encodeBusiness({
+  name,
+  appointmentMinutes = DEFAULT_APPOINTMENT_MINUTES,
+  offerHandoffs = true,
+  handoffsTogether = false,
+  turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES,
+  hours,
+}) {
+  const handoffs = !offerHandoffs
+    ? HANDOFFS_OFF
+    : handoffsTogether
+      ? HANDOFFS_TOGETHER
+      : HANDOFFS_SEPARATE
   const compact = {
     n: name.trim().slice(0, MAX_NAME_LENGTH),
     a: appointmentMinutes,
+    p: handoffs,
+    ...(handoffs === HANDOFFS_TOGETHER && { t: turnaroundMinutes }),
     h: hours.map((range) => [
       DAYS.indexOf(range.day),
       range.start.replace(':', ''),
@@ -35,6 +61,11 @@ export function encodeBusiness({ name, appointmentMinutes = DEFAULT_APPOINTMENT_
     ]),
   }
   return toBase64Url(JSON.stringify(compact))
+}
+
+// A whole number of minutes, in 5-minute steps, within [min, max].
+function isMinutes(value, min, max) {
+  return Number.isInteger(value) && value >= min && value <= max && value % 5 === 0
 }
 
 function expandTime(value) {
@@ -50,16 +81,13 @@ export function decodeBusiness(encoded) {
     const compact = JSON.parse(fromBase64Url(encoded))
     if (typeof compact?.n !== 'string' || !Array.isArray(compact.h)) return null
 
-    // Links made before appointment lengths existed have no `a`.
+    // Older links are missing newer settings; fill in what they used to mean.
     const appointmentMinutes = compact.a ?? DEFAULT_APPOINTMENT_MINUTES
-    if (
-      !Number.isInteger(appointmentMinutes) ||
-      appointmentMinutes < 5 ||
-      appointmentMinutes > MAX_APPOINTMENT_MINUTES ||
-      appointmentMinutes % 5 !== 0
-    ) {
-      return null
-    }
+    const handoffs = compact.p ?? HANDOFFS_SEPARATE
+    const turnaroundMinutes = compact.t ?? DEFAULT_TURNAROUND_MINUTES
+    if (!isMinutes(appointmentMinutes, 5, MAX_APPOINTMENT_MINUTES)) return null
+    if (![HANDOFFS_OFF, HANDOFFS_SEPARATE, HANDOFFS_TOGETHER].includes(handoffs)) return null
+    if (!isMinutes(turnaroundMinutes, 5, MAX_TURNAROUND_MINUTES)) return null
 
     const hours = compact.h.map((entry) => {
       if (!Array.isArray(entry) || entry.length < 3 || entry.length % 2 === 0) throw new Error()
@@ -75,7 +103,14 @@ export function decodeBusiness(encoded) {
       return { day, start, end, breaks }
     })
 
-    return { name: compact.n.slice(0, MAX_NAME_LENGTH), appointmentMinutes, hours }
+    return {
+      name: compact.n.slice(0, MAX_NAME_LENGTH),
+      appointmentMinutes,
+      offerHandoffs: handoffs !== HANDOFFS_OFF,
+      handoffsTogether: handoffs === HANDOFFS_TOGETHER,
+      turnaroundMinutes,
+      hours,
+    }
   } catch {
     return null
   }

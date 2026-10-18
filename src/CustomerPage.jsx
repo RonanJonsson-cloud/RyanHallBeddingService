@@ -3,12 +3,17 @@ import BreaksEditor from './BreaksEditor.jsx'
 import {
   DAYS,
   DEFAULT_APPOINTMENT_MINUTES,
-  SERVICES,
+  DEFAULT_TURNAROUND_MINUTES,
+  HANDOFF_MINUTES,
+  PAIRED_SERVICE,
+  availableServices,
   formatDuration,
   formatRange,
   formatRangeWithBreaks,
   rangeError,
   serviceMinutes,
+  suggestDropOffs,
+  suggestPickups,
   suggestSlots,
 } from './scheduling.js'
 
@@ -17,8 +22,44 @@ const GREETING = {
   text: "Hi! I'll help you find a time. What do you need?",
 }
 
+const DAYS_QUESTION = 'Which days are you available? Tap all that work, then press Next.'
+
 function slotLabel(slot) {
   return `${slot.day} ${formatRange(slot)}`
+}
+
+// "Appointments take 45 minutes." and friends.
+function serviceIntro(service, { appointmentMinutes, turnaroundMinutes }) {
+  if (service === PAIRED_SERVICE) {
+    return `You'll book a drop-off first, then a pickup at least ${formatDuration(
+      turnaroundMinutes,
+    )} later. Each takes ${formatDuration(HANDOFF_MINUTES)}.`
+  }
+  const plural = service === 'Appointment' ? 'Appointments' : `${service}s`
+  return `${plural} take ${formatDuration(serviceMinutes(service, appointmentMinutes))}.`
+}
+
+function matchesText(matches, what) {
+  return matches.length === 1
+    ? `The earliest day that works is ${matches[0].day}. I found 1 time for your ${what}:`
+    : `The earliest day that works is ${matches[0].day}. Here are ${matches.length} times across that day for your ${what}:`
+}
+
+// With only one service on offer, skip straight to asking for days.
+function startingChat(services, settings) {
+  if (services.length === 1) {
+    return {
+      messages: [
+        {
+          from: 'bot',
+          text: `Hi! I'll help you book an appointment. ${serviceIntro('Appointment', settings)} ${DAYS_QUESTION}`,
+        },
+      ],
+      step: 'days',
+      service: services[0],
+    }
+  }
+  return { messages: [GREETING], step: 'service', service: '' }
 }
 
 function TimeRangeForm({ day, onSubmit }) {
@@ -62,14 +103,27 @@ function TimeRangeForm({ day, onSubmit }) {
   )
 }
 
-function CustomerPage({ businessHours, appointmentMinutes = DEFAULT_APPOINTMENT_MINUTES }) {
-  const [messages, setMessages] = useState([GREETING])
-  const [step, setStep] = useState('service')
-  const [service, setService] = useState('')
+function CustomerPage({ business }) {
+  const {
+    hours: businessHours,
+    appointmentMinutes = DEFAULT_APPOINTMENT_MINUTES,
+    offerHandoffs = true,
+    handoffsTogether = false,
+    turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES,
+  } = business
+  const settings = { appointmentMinutes, turnaroundMinutes }
+  const services = availableServices({ offerHandoffs, handoffsTogether })
+
+  const [initial] = useState(() => startingChat(services, settings))
+  const [messages, setMessages] = useState(initial.messages)
+  const [step, setStep] = useState(initial.step)
+  const [service, setService] = useState(initial.service)
   const [days, setDays] = useState([])
   const [dayIndex, setDayIndex] = useState(0)
   const [customerHours, setCustomerHours] = useState([])
   const [slots, setSlots] = useState([])
+  // For a paired booking, the drop-off chosen before picking a pickup.
+  const [dropOff, setDropOff] = useState(null)
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -84,12 +138,7 @@ function CustomerPage({ businessHours, appointmentMinutes = DEFAULT_APPOINTMENT_
     setService(choice)
     say(
       { from: 'user', text: choice },
-      {
-        from: 'bot',
-        text: `${choice === 'Appointment' ? 'Appointments' : `${choice}s`} take ${formatDuration(
-          serviceMinutes(choice, appointmentMinutes),
-        )}. Which days are you available? Tap all that work, then press Next.`,
-      },
+      { from: 'bot', text: `${serviceIntro(choice, settings)} ${DAYS_QUESTION}` },
     )
     setStep('days')
   }
@@ -132,6 +181,24 @@ function CustomerPage({ businessHours, appointmentMinutes = DEFAULT_APPOINTMENT_
       return
     }
 
+    if (service === PAIRED_SERVICE) {
+      const dropOffs = suggestDropOffs(businessHours, updated, { turnaroundMinutes })
+      if (dropOffs.length === 0) {
+        say({
+          from: 'bot',
+          text: `Sorry, I couldn't fit a drop-off and a pickup at least ${formatDuration(
+            turnaroundMinutes,
+          )} apart into the business's hours. Try adding more days or times.`,
+        })
+        setStep('done')
+        return
+      }
+      setSlots(dropOffs)
+      say({ from: 'bot', text: `First, your drop-off. ${matchesText(dropOffs, 'drop-off')}` })
+      setStep('pick')
+      return
+    }
+
     const matches = suggestSlots(businessHours, updated, {
       minutes: serviceMinutes(service, appointmentMinutes),
     })
@@ -144,35 +211,49 @@ function CustomerPage({ businessHours, appointmentMinutes = DEFAULT_APPOINTMENT_
       setStep('done')
       return
     }
-    say({
-      from: 'bot',
-      text:
-        matches.length === 1
-          ? `The earliest day that works is ${matches[0].day}. I found 1 time for your ${service.toLowerCase()}:`
-          : `The earliest day that works is ${matches[0].day}. Here are ${matches.length} times across that day for your ${service.toLowerCase()}:`,
-    })
+    say({ from: 'bot', text: matchesText(matches, service.toLowerCase()) })
     setStep('pick')
   }
 
   function pickSlot(slot) {
-    say(
-      { from: 'user', text: slotLabel(slot) },
-      {
+    say({ from: 'user', text: slotLabel(slot) })
+
+    // Paired booking, first pick: that was the drop-off; now offer pickups.
+    // suggestDropOffs only offers drop-offs that leave room for a pickup.
+    if (service === PAIRED_SERVICE && !dropOff) {
+      const pickups = suggestPickups(businessHours, customerHours, slot, { turnaroundMinutes })
+      setDropOff(slot)
+      setSlots(pickups)
+      say({
         from: 'bot',
-        text: `You're all set: ${service} on ${slotLabel(slot)}. (This is a demo, so nothing is saved yet.)`,
-      },
-    )
+        text: `Now your pickup, at least ${formatDuration(
+          turnaroundMinutes,
+        )} after your drop-off. ${matchesText(pickups, 'pickup')}`,
+      })
+      return
+    }
+
+    const booked =
+      service === PAIRED_SERVICE
+        ? `Drop-off on ${slotLabel(dropOff)} and pickup on ${slotLabel(slot)}`
+        : `${service} on ${slotLabel(slot)}`
+    say({
+      from: 'bot',
+      text: `You're all set: ${booked}. (This is a demo, so nothing is saved yet.)`,
+    })
     setStep('done')
   }
 
   function restart() {
-    setMessages([GREETING])
-    setStep('service')
-    setService('')
+    const fresh = startingChat(services, settings)
+    setMessages(fresh.messages)
+    setStep(fresh.step)
+    setService(fresh.service)
     setDays([])
     setDayIndex(0)
     setCustomerHours([])
     setSlots([])
+    setDropOff(null)
   }
 
   return (
@@ -190,7 +271,7 @@ function CustomerPage({ businessHours, appointmentMinutes = DEFAULT_APPOINTMENT_
       <div className="chat-controls">
         {step === 'service' && (
           <div className="choices">
-            {SERVICES.map((choice) => (
+            {services.map((choice) => (
               <button
                 key={choice}
                 type="button"
@@ -248,7 +329,7 @@ function CustomerPage({ businessHours, appointmentMinutes = DEFAULT_APPOINTMENT_
           </div>
         )}
 
-        {step !== 'service' && (
+        {messages.length > 1 && (
           <button type="button" className="button link" onClick={restart}>
             Start over
           </button>

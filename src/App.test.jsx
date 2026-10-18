@@ -93,6 +93,43 @@ describe('Business page', () => {
   })
 })
 
+describe('Pickup and drop-off settings', () => {
+  it('shows the together option only when pickups and drop-offs are offered', () => {
+    render(<App />)
+    const offer = screen.getByLabelText('Offer pickups and drop-offs')
+    expect(offer).toBeChecked()
+    expect(screen.getByLabelText('Schedule drop-off and pickup together')).not.toBeChecked()
+    expect(
+      screen.queryByLabelText('Minimum time between drop-off and pickup'),
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Schedule drop-off and pickup together'))
+    expect(screen.getByLabelText('Minimum time between drop-off and pickup')).toHaveValue('180')
+
+    fireEvent.click(offer)
+    expect(screen.getByText('Customers can only book appointments.')).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText('Schedule drop-off and pickup together'),
+    ).not.toBeInTheDocument()
+  })
+
+  it('puts the settings into the customer link', () => {
+    render(<App />)
+    fireEvent.click(screen.getByLabelText('Schedule drop-off and pickup together'))
+    fireEvent.change(screen.getByLabelText('Minimum time between drop-off and pickup'), {
+      target: { value: '1440' },
+    })
+    addBusinessHours('Monday', '09:00', '17:00')
+
+    const link = screen.getByLabelText('Customer link').value
+    expect(decodeBusiness(new URL(link).searchParams.get('b'))).toMatchObject({
+      offerHandoffs: true,
+      handoffsTogether: true,
+      turnaroundMinutes: 1440,
+    })
+  })
+})
+
 describe('Share panel', () => {
   it('asks for hours before offering a link', () => {
     render(<App />)
@@ -249,5 +286,88 @@ describe('Customer page (from a shared link)', () => {
     window.history.replaceState({}, '', '/?b=not-a-real-link')
     render(<App />)
     expect(screen.getByRole('alert')).toHaveTextContent("This booking link isn't valid.")
+  })
+})
+
+describe('Customer page: appointments only', () => {
+  it('skips the service question', () => {
+    renderCustomerLink({
+      name: 'Ryan Hall Bedding Service',
+      appointmentMinutes: 60,
+      offerHandoffs: false,
+      hours: [{ day: 'Monday', start: '09:00', end: '12:00', breaks: [] }],
+    })
+    expect(
+      screen.getByText(/^Hi! I'll help you book an appointment\. Appointments take 1 hour\./),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Pickup' })).not.toBeInTheDocument()
+
+    click('Monday')
+    click('Next')
+    click('Send')
+    expect(screen.getByRole('button', { name: 'Monday 9:00 AM – 10:00 AM' })).toBeInTheDocument()
+
+    click('Start over')
+    expect(screen.getByRole('button', { name: 'Monday' })).toBeInTheDocument()
+  })
+})
+
+describe('Customer page: drop-off and pickup together', () => {
+  const business = {
+    name: 'Ryan Hall Bedding Service',
+    offerHandoffs: true,
+    handoffsTogether: true,
+    turnaroundMinutes: 180,
+    hours: [{ day: 'Monday', start: '09:00', end: '17:00', breaks: [] }],
+  }
+
+  it('makes the customer book a drop-off and then a later pickup', () => {
+    renderCustomerLink(business)
+    expect(screen.queryByRole('button', { name: 'Pickup' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Drop-off' })).not.toBeInTheDocument()
+
+    click('Drop-off & pickup')
+    expect(
+      screen.getByText(/^You'll book a drop-off first, then a pickup at least 3 hours later\./),
+    ).toBeInTheDocument()
+    click('Monday')
+    click('Next')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '17:00' } })
+    click('Send')
+
+    expect(screen.getByText(/^First, your drop-off\. The earliest day that works is Monday/))
+      .toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday 9:00 AM – 9:05 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday 11:15 AM – 11:20 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday 1:30 PM – 1:35 PM' })).toBeInTheDocument()
+
+    click('Monday 11:15 AM – 11:20 AM')
+    expect(screen.getByText(/^Now your pickup, at least 3 hours after your drop-off\./))
+      .toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday 2:30 PM – 2:35 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday 3:45 PM – 3:50 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday 4:45 PM – 4:50 PM' })).toBeInTheDocument()
+
+    click('Monday 3:45 PM – 3:50 PM')
+    expect(
+      screen.getByText(
+        /You're all set: Drop-off on Monday 11:15 AM – 11:20 AM and pickup on Monday 3:45 PM – 3:50 PM/,
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('says so when there is no room for both', () => {
+    renderCustomerLink(business)
+    click('Drop-off & pickup')
+    click('Monday')
+    click('Next')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '11:00' } })
+    click('Send')
+
+    expect(
+      screen.getByText(/couldn't fit a drop-off and a pickup at least 3 hours apart/),
+    ).toBeInTheDocument()
   })
 })
