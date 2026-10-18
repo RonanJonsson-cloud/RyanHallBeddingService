@@ -204,7 +204,8 @@ function BusinessPage({ settings, onSettingsChange, hours, onChange }) {
       <section>
         <h2>Your available hours</h2>
         <p className="hint">
-          Add each day and time range when you can take bookings. Use a busy time to block out
+          Add each day and time range when you can take bookings. These hours repeat every week,
+          and customers book specific dates up to 4 weeks ahead. Use a busy time to block out
           lunch or anything else in the middle of the day.
         </p>
 

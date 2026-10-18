@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App.jsx'
 import { decodeBusiness, encodeBusiness } from './shareLink.js'
 
@@ -14,7 +14,14 @@ function addBusinessHours(day, start, end) {
   click('Add hours')
 }
 
+// A fixed "today" so the calendar is predictable: Monday, October 19, 2026, 8:00 AM.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(new Date(2026, 9, 19, 8, 0))
+})
+
 afterEach(() => {
+  vi.useRealTimers()
   window.history.replaceState({}, '', '/')
 })
 
@@ -197,10 +204,10 @@ describe('Share panel', () => {
     expect(screen.queryByRole('heading', { name: 'Your available hours' })).not.toBeInTheDocument()
 
     click('Appointment')
-    click('Tuesday')
+    click('Tuesday, October 20')
     click('Next')
     click('Send')
-    expect(screen.getByText(/The earliest day that works is Tuesday/)).toBeInTheDocument()
+    expect(screen.getByText(/The earliest day that works is Tue Oct 20/)).toBeInTheDocument()
   })
 })
 
@@ -227,8 +234,8 @@ describe('Customer page (from a shared link)', () => {
     renderCustomerLink(business)
     click('Appointment')
     expect(screen.getByText(/^Appointments take 30 minutes\./)).toBeInTheDocument()
-    click('Wednesday')
-    click('Monday')
+    click('Wednesday, October 21')
+    click('Monday, October 19')
     click('Next')
 
     // Monday: free 9 AM – 5 PM, but busy 12 – 1 for lunch.
@@ -247,22 +254,22 @@ describe('Customer page (from a shared link)', () => {
 
     expect(
       screen.getByText(
-        'The earliest day that works is Monday. Here are 3 times across that day for your appointment:',
+        'The earliest day that works is Mon Oct 19. Here are 3 times across that day for your appointment:',
       ),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 9:00 AM – 9:30 AM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 1:30 PM – 2:00 PM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 4:30 PM – 5:00 PM' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Wednesday/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 9:00 AM – 9:30 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 1:30 PM – 2:00 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 4:30 PM – 5:00 PM' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Wed Oct 21/ })).not.toBeInTheDocument()
 
-    click('Monday 1:30 PM – 2:00 PM')
+    click('Mon Oct 19 1:30 PM – 2:00 PM')
     expect(
       screen.getByText('Anything else we should know?'),
     ).toBeInTheDocument()
     click('Skip')
     expect(screen.queryByLabelText('Your comments')).not.toBeInTheDocument()
     expect(
-      screen.getByText(/You're all set: Appointment on Monday 1:30 PM – 2:00 PM/),
+      screen.getByText(/You're all set: Appointment on Mon Oct 19 1:30 PM – 2:00 PM/),
     ).toBeInTheDocument()
   })
 
@@ -270,16 +277,16 @@ describe('Customer page (from a shared link)', () => {
     renderCustomerLink(business)
     click('Pickup')
     expect(screen.getByText(/^Pickups take 5 minutes\./)).toBeInTheDocument()
-    click('Monday')
+    click('Monday, October 19')
     click('Next')
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '17:00' } })
     click('+ Add a busy time (lunch, class…)')
     click('Send')
 
-    expect(screen.getByRole('button', { name: 'Monday 9:00 AM – 9:05 AM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 1:30 PM – 1:35 PM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 4:45 PM – 4:50 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 9:00 AM – 9:05 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 1:30 PM – 1:35 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 4:45 PM – 4:50 PM' })).toBeInTheDocument()
   })
 
   it("uses the business's appointment length", () => {
@@ -290,33 +297,33 @@ describe('Customer page (from a shared link)', () => {
     })
     click('Appointment')
     expect(screen.getByText(/^Appointments take 1 hour\./)).toBeInTheDocument()
-    click('Tuesday')
+    click('Tuesday, October 20')
     click('Next')
     click('Send')
 
-    expect(screen.getByRole('button', { name: 'Tuesday 9:00 AM – 10:00 AM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Tuesday 10:00 AM – 11:00 AM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Tuesday 11:00 AM – 12:00 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tue Oct 20 9:00 AM – 10:00 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tue Oct 20 10:00 AM – 11:00 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tue Oct 20 11:00 AM – 12:00 PM' })).toBeInTheDocument()
   })
 
   it('says so when nothing matches', () => {
     renderCustomerLink(business)
     click('Drop-off')
-    click('Friday')
+    click('Monday, October 19')
     click('Next')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '18:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '20:00' } })
     click('Send')
 
     expect(screen.getByText(/none of those times line up/)).toBeInTheDocument()
   })
 
-  it('says so when the link has no hours', () => {
+  it('says so up front when the link has no hours', () => {
     renderCustomerLink({ name: 'Ryan Hall Bedding Service', hours: [] })
-    click('Appointment')
-    click('Monday')
-    click('Next')
-    click('Send')
-
-    expect(screen.getByText(/hasn't posted any hours yet/)).toBeInTheDocument()
+    expect(
+      screen.getByText("This business hasn't posted any hours yet. Please check back soon."),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('explains when a link is broken', () => {
@@ -339,13 +346,13 @@ describe('Customer page: appointments only', () => {
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pickup' })).not.toBeInTheDocument()
 
-    click('Monday')
+    click('Monday, October 19')
     click('Next')
     click('Send')
-    expect(screen.getByRole('button', { name: 'Monday 9:00 AM – 10:00 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 9:00 AM – 10:00 AM' })).toBeInTheDocument()
 
     click('Start over')
-    expect(screen.getByRole('button', { name: 'Monday' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Monday, October 19' })).toBeInTheDocument()
   })
 })
 
@@ -367,32 +374,32 @@ describe('Customer page: drop-off and pickup together', () => {
     expect(
       screen.getByText(/^You'll book a drop-off first, then a pickup at least 3 hours later\./),
     ).toBeInTheDocument()
-    click('Monday')
+    click('Monday, October 19')
     click('Next')
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '17:00' } })
     click('Send')
 
-    expect(screen.getByText(/^First, your drop-off\. The earliest day that works is Monday/))
+    expect(screen.getByText(/^First, your drop-off\. The earliest day that works is Mon Oct 19/))
       .toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 9:00 AM – 9:05 AM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 11:15 AM – 11:20 AM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 1:30 PM – 1:35 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 9:00 AM – 9:05 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 11:15 AM – 11:20 AM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 1:30 PM – 1:35 PM' })).toBeInTheDocument()
 
-    click('Monday 11:15 AM – 11:20 AM')
+    click('Mon Oct 19 11:15 AM – 11:20 AM')
     // Comments come only after both times are chosen.
     expect(screen.queryByText(/^Anything else we should know/)).not.toBeInTheDocument()
     expect(screen.getByText(/^Now your pickup, at least 3 hours after your drop-off\./))
       .toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 2:30 PM – 2:35 PM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 3:45 PM – 3:50 PM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Monday 4:45 PM – 4:50 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 2:30 PM – 2:35 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 3:45 PM – 3:50 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 4:45 PM – 4:50 PM' })).toBeInTheDocument()
 
-    click('Monday 3:45 PM – 3:50 PM')
+    click('Mon Oct 19 3:45 PM – 3:50 PM')
     click('Skip')
     expect(
       screen.getByText(
-        /You're all set: Drop-off on Monday 11:15 AM – 11:20 AM and pickup on Monday 3:45 PM – 3:50 PM/,
+        /You're all set: Drop-off on Mon Oct 19 11:15 AM – 11:20 AM and pickup on Mon Oct 19 3:45 PM – 3:50 PM/,
       ),
     ).toBeInTheDocument()
   })
@@ -400,7 +407,7 @@ describe('Customer page: drop-off and pickup together', () => {
   it('says so when there is no room for both', () => {
     renderCustomerLink(business)
     click('Drop-off & pickup')
-    click('Monday')
+    click('Monday, October 19')
     click('Next')
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '11:00' } })
@@ -434,7 +441,7 @@ describe('Customer page: no appointments', () => {
       screen.getByText(/^Hi! I'll help you book a drop-off and pickup\. You'll book a drop-off first/),
     ).toBeInTheDocument()
 
-    click('Monday')
+    click('Monday, October 19')
     click('Next')
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
     fireEvent.change(screen.getByLabelText('To'), { target: { value: '17:00' } })
@@ -464,10 +471,10 @@ describe('Customer page: final comments', () => {
   function bookPickup() {
     renderCustomerLink(business)
     click('Pickup')
-    click('Monday')
+    click('Monday, October 19')
     click('Next')
     click('Send')
-    click('Monday 9:00 AM – 9:05 AM')
+    click('Mon Oct 19 9:00 AM – 9:05 AM')
   }
 
   it('asks a yes or no question before finishing', () => {
@@ -496,7 +503,7 @@ describe('Customer page: final comments', () => {
     expect(screen.getByText('Please knock, the doorbell is broken.')).toBeInTheDocument()
     expect(
       screen.getByText(
-        /You're all set: Pickup on Monday 9:00 AM – 9:05 AM\. Thanks for your note\./,
+        /You're all set: Pickup on Mon Oct 19 9:00 AM – 9:05 AM\. Thanks for your note\./,
       ),
     ).toBeInTheDocument()
     expect(screen.queryByLabelText('Your comments')).not.toBeInTheDocument()
@@ -505,7 +512,79 @@ describe('Customer page: final comments', () => {
   it('finishes straight away when the customer skips', () => {
     bookPickup()
     click('Skip')
-    expect(screen.getByText(/You're all set: Pickup on Monday 9:00 AM – 9:05 AM\. \(This/))
+    expect(screen.getByText(/You're all set: Pickup on Mon Oct 19 9:00 AM – 9:05 AM\. \(This/))
       .toBeInTheDocument()
+  })
+})
+
+describe('Customer page: calendar', () => {
+  const business = {
+    name: 'Ryan Hall Bedding Service',
+    hours: [
+      { day: 'Monday', start: '09:00', end: '17:00', breaks: [] },
+      { day: 'Wednesday', start: '09:00', end: '17:00', breaks: [] },
+    ],
+  }
+
+  function openCalendar() {
+    renderCustomerLink(business)
+    click('Pickup')
+  }
+
+  it('only lets customers pick open dates within the next 4 weeks', () => {
+    openCalendar()
+    const date = (name) => screen.getByRole('button', { name })
+
+    expect(date('Monday, October 19')).toBeEnabled()
+    expect(date('Wednesday, October 21')).toBeEnabled()
+    expect(date('Tuesday, October 20 (unavailable)')).toBeDisabled()
+    expect(date('Monday, November 9')).toBeEnabled()
+    // Today is a Monday, so the calendar runs exactly 4 weeks: Oct 19 – Nov 15.
+    expect(screen.queryByRole('button', { name: /October 18/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /November 16/ })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /day, (October|November)/ })).toHaveLength(28)
+  })
+
+  it('marks picked dates and needs at least one before Next', () => {
+    openCalendar()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+
+    click('Wednesday, October 21')
+    expect(screen.getByRole('button', { name: 'Wednesday, October 21' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
+
+    click('Wednesday, October 21')
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+  })
+
+  it('asks about each picked date in order', () => {
+    openCalendar()
+    click('Monday, October 26')
+    click('Wednesday, October 21')
+    click('Next')
+
+    expect(screen.getByText('Wed Oct 21, Mon Oct 26')).toBeInTheDocument()
+    expect(screen.getByText('What times are you free on Wed Oct 21?')).toBeInTheDocument()
+    click('Send')
+    expect(screen.getByText('And on Mon Oct 26?')).toBeInTheDocument()
+  })
+
+  it('skips times that have already passed today', () => {
+    vi.setSystemTime(new Date(2026, 9, 19, 16, 50))
+    openCalendar()
+    click('Monday, October 19')
+    click('Wednesday, October 21')
+    click('Next')
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '17:00' } })
+    click('Send')
+    click('Send')
+
+    // At 4:50 PM the last Monday pickup (4:45) has passed, so it moves to Wednesday.
+    expect(screen.getByText(/The earliest day that works is Wed Oct 21/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Mon Oct 19/ })).not.toBeInTheDocument()
   })
 })

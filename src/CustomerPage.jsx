@@ -1,20 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
 import BreaksEditor from './BreaksEditor.jsx'
+import DatePicker from './DatePicker.jsx'
 import {
-  DAYS,
   DEFAULT_APPOINTMENT_MINUTES,
   DEFAULT_TURNAROUND_MINUTES,
   HANDOFF_MINUTES,
   PAIRED_SERVICE,
   availableServices,
+  formatDate,
   formatDuration,
   formatRange,
   formatRangeWithBreaks,
+  nowOnTimeline,
   rangeError,
   serviceMinutes,
   suggestDropOffs,
   suggestPickups,
   suggestSlots,
+  toDateString,
 } from './scheduling.js'
 
 const GREETING = {
@@ -22,12 +25,13 @@ const GREETING = {
   text: "Hi! I'll help you find a time. What do you need?",
 }
 
-const DAYS_QUESTION = 'Which days are you available? Tap all that work, then press Next.'
+const DATES_QUESTION =
+  'Which dates work for you? Tap all that work, then press Next. Greyed-out dates are when the business is closed.'
 const COMMENTS_QUESTION = 'Anything else we should know?'
 const MAX_COMMENT_LENGTH = 500
 
 function slotLabel(slot) {
-  return `${slot.day} ${formatRange(slot)}`
+  return `${formatDate(slot.date)} ${formatRange(slot)}`
 }
 
 // "Appointments take 45 minutes." and friends.
@@ -43,8 +47,8 @@ function serviceIntro(service, { appointmentMinutes, turnaroundMinutes }) {
 
 function matchesText(matches, what) {
   return matches.length === 1
-    ? `The earliest day that works is ${matches[0].day}. I found 1 time for your ${what}:`
-    : `The earliest day that works is ${matches[0].day}. Here are ${matches.length} times across that day for your ${what}:`
+    ? `The earliest day that works is ${formatDate(matches[0].date)}. I found 1 time for your ${what}:`
+    : `The earliest day that works is ${formatDate(matches[0].date)}. Here are ${matches.length} times across that day for your ${what}:`
 }
 
 const SERVICE_NAMES = {
@@ -52,8 +56,20 @@ const SERVICE_NAMES = {
   [PAIRED_SERVICE]: 'a drop-off and pickup',
 }
 
-// With only one service on offer, skip straight to asking for days.
-function startingChat(services, settings) {
+// With only one service on offer, skip straight to asking for dates.
+function startingChat(services, settings, hasHours) {
+  if (!hasHours) {
+    return {
+      messages: [
+        {
+          from: 'bot',
+          text: "This business hasn't posted any hours yet. Please check back soon.",
+        },
+      ],
+      step: 'done',
+      service: '',
+    }
+  }
   if (services.length === 0) {
     return {
       messages: [{ from: 'bot', text: "Sorry, this business isn't taking bookings right now." }],
@@ -68,17 +84,17 @@ function startingChat(services, settings) {
       messages: [
         {
           from: 'bot',
-          text: `Hi! I'll help you book ${name}. ${serviceIntro(service, settings)} ${DAYS_QUESTION}`,
+          text: `Hi! I'll help you book ${name}. ${serviceIntro(service, settings)} ${DATES_QUESTION}`,
         },
       ],
-      step: 'days',
+      step: 'dates',
       service,
     }
   }
   return { messages: [GREETING], step: 'service', service: '' }
 }
 
-function TimeRangeForm({ day, onSubmit }) {
+function TimeRangeForm({ label, onSubmit }) {
   const [start, setStart] = useState('09:00')
   const [end, setEnd] = useState('12:00')
   const [breaks, setBreaks] = useState([])
@@ -95,7 +111,7 @@ function TimeRangeForm({ day, onSubmit }) {
   }
 
   return (
-    <form className="card" onSubmit={handleSubmit} aria-label={`Times for ${day}`}>
+    <form className="card" onSubmit={handleSubmit} aria-label={`Times for ${label}`}>
       <div className="field-row">
         <label className="field">
           From
@@ -168,12 +184,12 @@ function CustomerPage({ business }) {
   const settings = { appointmentMinutes, turnaroundMinutes }
   const services = availableServices({ offerAppointments, offerHandoffs, handoffsTogether })
 
-  const [initial] = useState(() => startingChat(services, settings))
+  const [initial] = useState(() => startingChat(services, settings, businessHours.length > 0))
   const [messages, setMessages] = useState(initial.messages)
   const [step, setStep] = useState(initial.step)
   const [service, setService] = useState(initial.service)
-  const [days, setDays] = useState([])
-  const [dayIndex, setDayIndex] = useState(0)
+  const [dates, setDates] = useState([])
+  const [dateIndex, setDateIndex] = useState(0)
   const [customerHours, setCustomerHours] = useState([])
   const [slots, setSlots] = useState([])
   // For a paired booking, the drop-off chosen before picking a pickup.
@@ -194,57 +210,51 @@ function CustomerPage({ business }) {
     setService(choice)
     say(
       { from: 'user', text: choice },
-      { from: 'bot', text: `${serviceIntro(choice, settings)} ${DAYS_QUESTION}` },
+      { from: 'bot', text: `${serviceIntro(choice, settings)} ${DATES_QUESTION}` },
     )
-    setStep('days')
+    setStep('dates')
   }
 
-  function toggleDay(day) {
-    setDays((current) =>
-      current.includes(day) ? current.filter((d) => d !== day) : [...current, day],
+  function toggleDate(date) {
+    setDates((current) =>
+      current.includes(date) ? current.filter((d) => d !== date) : [...current, date],
     )
   }
 
-  function confirmDays() {
-    const ordered = DAYS.filter((d) => days.includes(d))
-    setDays(ordered)
-    setDayIndex(0)
+  function confirmDates() {
+    const ordered = [...dates].sort()
+    setDates(ordered)
+    setDateIndex(0)
     say(
-      { from: 'user', text: ordered.join(', ') },
-      { from: 'bot', text: `What times are you free on ${ordered[0]}?` },
+      { from: 'user', text: ordered.map(formatDate).join(', ') },
+      { from: 'bot', text: `What times are you free on ${formatDate(ordered[0])}?` },
     )
     setStep('times')
   }
 
   function submitTimes(start, end, breaks) {
-    const range = { day: days[dayIndex], start, end, breaks }
+    const range = { date: dates[dateIndex], start, end, breaks }
     const updated = [...customerHours, range]
     setCustomerHours(updated)
     say({ from: 'user', text: formatRangeWithBreaks(range) })
 
-    if (dayIndex + 1 < days.length) {
-      setDayIndex(dayIndex + 1)
-      say({ from: 'bot', text: `And on ${days[dayIndex + 1]}?` })
+    if (dateIndex + 1 < dates.length) {
+      setDateIndex(dateIndex + 1)
+      say({ from: 'bot', text: `And on ${formatDate(dates[dateIndex + 1])}?` })
       return
     }
 
-    if (businessHours.length === 0) {
-      say({
-        from: 'bot',
-        text: "The business hasn't posted any hours yet, so I can't find a match. Please check back soon.",
-      })
-      setStep('done')
-      return
-    }
+    // Times earlier today have already passed.
+    const notBefore = nowOnTimeline()
 
     if (service === PAIRED_SERVICE) {
-      const dropOffs = suggestDropOffs(businessHours, updated, { turnaroundMinutes })
+      const dropOffs = suggestDropOffs(businessHours, updated, { turnaroundMinutes, notBefore })
       if (dropOffs.length === 0) {
         say({
           from: 'bot',
           text: `Sorry, I couldn't fit a drop-off and a pickup at least ${formatDuration(
             turnaroundMinutes,
-          )} apart into the business's hours. Try adding more days or times.`,
+          )} apart into the business's hours. Try adding more dates or times.`,
         })
         setStep('done')
         return
@@ -257,12 +267,13 @@ function CustomerPage({ business }) {
 
     const matches = suggestSlots(businessHours, updated, {
       minutes: serviceMinutes(service, appointmentMinutes),
+      notBefore,
     })
     setSlots(matches)
     if (matches.length === 0) {
       say({
         from: 'bot',
-        text: "Sorry, none of those times line up with the business's hours. Try different days or times.",
+        text: "Sorry, none of those times line up with the business's hours. Try different dates or times.",
       })
       setStep('done')
       return
@@ -322,12 +333,12 @@ function CustomerPage({ business }) {
   }
 
   function restart() {
-    const fresh = startingChat(services, settings)
+    const fresh = startingChat(services, settings, businessHours.length > 0)
     setMessages(fresh.messages)
     setStep(fresh.step)
     setService(fresh.service)
-    setDays([])
-    setDayIndex(0)
+    setDates([])
+    setDateIndex(0)
     setCustomerHours([])
     setSlots([])
     setDropOff(null)
@@ -362,26 +373,19 @@ function CustomerPage({ business }) {
           </div>
         )}
 
-        {step === 'days' && (
+        {step === 'dates' && (
           <>
-            <div className="choices" role="group" aria-label="Days">
-              {DAYS.map((day) => (
-                <button
-                  key={day}
-                  type="button"
-                  className="chip"
-                  aria-pressed={days.includes(day)}
-                  onClick={() => toggleDay(day)}
-                >
-                  {day}
-                </button>
-              ))}
-            </div>
+            <DatePicker
+              today={toDateString(new Date())}
+              openDays={new Set(businessHours.map((range) => range.day))}
+              selected={dates}
+              onToggle={toggleDate}
+            />
             <button
               type="button"
               className="button primary"
-              disabled={days.length === 0}
-              onClick={confirmDays}
+              disabled={dates.length === 0}
+              onClick={confirmDates}
             >
               Next
             </button>
@@ -389,7 +393,11 @@ function CustomerPage({ business }) {
         )}
 
         {step === 'times' && (
-          <TimeRangeForm key={dayIndex} day={days[dayIndex]} onSubmit={submitTimes} />
+          <TimeRangeForm
+            key={dateIndex}
+            label={formatDate(dates[dateIndex])}
+            onSubmit={submitTimes}
+          />
         )}
 
         {step === 'pick' && (
