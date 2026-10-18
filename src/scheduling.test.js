@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
   PAIRED_SERVICE,
-  addOpenTime,
-  dateAfterOpenTime,
+  earliestPickup,
+  earliestPickupDate,
   turnaroundError,
   addDays,
   availableServices,
@@ -385,13 +385,15 @@ describe('paired drop-off and pickup', () => {
       { date: MON, start: '09:00', end: '10:00' },
       { date: TUE, start: '09:00', end: '10:00' },
     ]
+    // 1 day later at the same time of day.
     expect(suggestDropOffs(hours, free, { turnaroundMinutes: 1440 })).toEqual([
       { date: MON, start: '09:00', end: '09:05' },
-      { date: MON, start: '09:15', end: '09:20' },
       { date: MON, start: '09:30', end: '09:35' },
+      { date: MON, start: '09:45', end: '09:50' },
     ])
     const dropOff = { date: MON, start: '09:30', end: '09:35' }
     expect(suggestPickups(hours, free, dropOff, { turnaroundMinutes: 1440 })).toEqual([
+      { date: TUE, start: '09:30', end: '09:35' },
       { date: TUE, start: '09:45', end: '09:50' },
     ])
   })
@@ -405,9 +407,9 @@ describe('paired drop-off and pickup', () => {
       { date: '2026-10-25', start: '09:00', end: '10:00' },
       { date: NEXT_MON, start: '09:00', end: '10:00' },
     ]
-    const dropOffs = suggestDropOffs(hours, free, { turnaroundMinutes: 720 })
+    const dropOffs = suggestDropOffs(hours, free, { turnaroundMinutes: 1440 })
     expect(dropOffs[0].date).toBe('2026-10-25')
-    expect(suggestPickups(hours, free, dropOffs[0], { turnaroundMinutes: 720 })[0]).toEqual({
+    expect(suggestPickups(hours, free, dropOffs[0], { turnaroundMinutes: 1440 })[0]).toEqual({
       date: NEXT_MON,
       start: '09:00',
       end: '09:05',
@@ -446,7 +448,7 @@ describe('separate pickup availability', () => {
 
   it('only offers drop-offs with room before a pickup the customer can make', () => {
     // Pickups can start 2:00–2:45 PM, so with a 3-hour gap a drop-off must
-    // end by 11:45 AM.
+    // start by 11:45 AM.
     const pickupHours = [{ date: MON, start: '14:00', end: '15:00' }]
     const dropOffs = suggestDropOffs(business, dropOffHours, {
       pickupHours,
@@ -454,8 +456,8 @@ describe('separate pickup availability', () => {
     })
     expect(dropOffs).toEqual([
       { date: MON, start: '09:00', end: '09:05' },
-      { date: MON, start: '10:15', end: '10:20' },
-      { date: MON, start: '11:30', end: '11:35' },
+      { date: MON, start: '10:30', end: '10:35' },
+      { date: MON, start: '11:45', end: '11:50' },
     ])
     expect(suggestPickups(business, pickupHours, dropOffs[2], { turnaroundMinutes: 180 })).toEqual([
       { date: MON, start: '14:45', end: '14:50' },
@@ -470,55 +472,56 @@ describe('separate pickup availability', () => {
   })
 })
 
-const DAYS_OPEN = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-
-describe('closed days do not count toward the gap', () => {
-  const weekdays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day) => ({
-    day,
-    start: '09:00',
-    end: '17:00',
-  }))
+describe('earliestPickup: only open days and hours count', () => {
   const FRI = '2026-10-23'
   const NEXT_TUE = '2026-10-27'
+  // Open 9 AM – 5 PM on weekdays, with lunch off on Mondays.
+  const weekdays = [
+    { day: 'Monday', start: '09:00', end: '17:00', breaks: [{ start: '12:00', end: '13:00' }] },
+    ...['Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day) => ({
+      day,
+      start: '09:00',
+      end: '17:00',
+    })),
+  ]
+  const at = (date, time) => timelineMinutes(date, time)
 
-  it('skips the weekend when the business is closed then', () => {
+  it('moves whole days to the same time on a later open day', () => {
     // Fri 10 AM + 2 days, skipping Sat and Sun -> Tue 10 AM.
-    expect(dateAfterOpenTime(FRI, '10:00', 2 * 1440, weekdays)).toBe(NEXT_TUE)
-    expect(addOpenTime(timelineMinutes(FRI, '10:00'), 2 * 1440, weekdays)).toBe(
-      timelineMinutes(NEXT_TUE, '10:00'),
-    )
+    expect(earliestPickup(FRI, '10:00', 2 * 1440, weekdays)).toBe(at(NEXT_TUE, '10:00'))
+    expect(earliestPickupDate(FRI, '10:00', 2 * 1440, weekdays)).toBe(NEXT_TUE)
   })
 
-  it('counts every hour of an open day, including overnight', () => {
-    // Mon 10 PM + 3 hours -> Tue 1 AM (both open).
-    expect(addOpenTime(timelineMinutes(MON, '22:00'), 180, weekdays)).toBe(
-      timelineMinutes(TUE, '01:00'),
-    )
-    // Fri 10 PM + 3 hours: 2 hours Friday, then on to Monday 1 AM.
-    expect(addOpenTime(timelineMinutes(FRI, '22:00'), 180, weekdays)).toBe(
-      timelineMinutes(NEXT_MON, '01:00'),
-    )
+  it('counts hours only while the business is open', () => {
+    // Fri 3 PM + 3 hours: 2 hours on Friday, then 1 hour on Monday -> Mon 10 AM.
+    expect(earliestPickup(FRI, '15:00', 180, weekdays)).toBe(at(NEXT_MON, '10:00'))
+    // Tue 10 AM + 3 hours stays the same day -> Tue 1 PM.
+    expect(earliestPickup(TUE, '10:00', 180, weekdays)).toBe(at(TUE, '13:00'))
   })
 
-  it('counts the same as clock time when the business is open every day', () => {
-    const everyDay = DAYS_OPEN.map((day) => ({ day, start: '09:00', end: '17:00' }))
-    expect(addOpenTime(timelineMinutes(FRI, '10:00'), 2 * 1440, everyDay)).toBe(
-      timelineMinutes('2026-10-25', '10:00'),
-    )
+  it('skips busy times when counting hours', () => {
+    // Mon 11 AM + 2 hours: 11–12, lunch off, then 1–2 PM -> Mon 2 PM.
+    expect(earliestPickup(MON, '11:00', 120, weekdays)).toBe(at(MON, '14:00'))
+  })
+
+  it('adds the days first, then the open hours', () => {
+    // Fri 4 PM + 1 day 2 hours: Mon 4 PM, then 1 hour Monday and 1 hour
+    // Tuesday morning -> Tue 10 AM.
+    expect(earliestPickup(FRI, '16:00', 1440 + 120, weekdays)).toBe(at(NEXT_TUE, '10:00'))
   })
 
   it('never ends when the business has no hours', () => {
-    expect(addOpenTime(0, 60, [])).toBe(Infinity)
-    expect(dateAfterOpenTime(MON, '09:00', 60, [])).toBeNull()
+    expect(earliestPickup(MON, '09:00', 60, [])).toBe(Infinity)
+    expect(earliestPickupDate(MON, '09:00', 60, [])).toBeNull()
   })
 
-  it('suggests a Tuesday pickup after a Friday drop-off with a 2-day gap', () => {
+  it('suggests a Tuesday 10 AM pickup after a Friday 10 AM drop-off with a 2-day gap', () => {
     const dropOff = { date: FRI, start: '10:00', end: '10:05' }
     const free = [
       { date: NEXT_MON, start: '09:00', end: '17:00' },
       { date: NEXT_TUE, start: '09:00', end: '17:00' },
     ]
     const pickups = suggestPickups(weekdays, free, dropOff, { turnaroundMinutes: 2 * 1440 })
-    expect(pickups[0]).toEqual({ date: NEXT_TUE, start: '10:15', end: '10:20' })
+    expect(pickups[0]).toEqual({ date: NEXT_TUE, start: '10:00', end: '10:05' })
   })
 })

@@ -177,7 +177,7 @@ describe('Pickup and drop-off settings', () => {
     fireEvent.change(hours, { target: { value: '6' } })
     expect(
       screen.getByText(
-        /Pickups will be at least 1 day 6 hours after the drop-off, not counting days you're closed\./,
+        /^Pickups will be at least 1 day 6 hours after the drop-off\. Days skip days you're closed/,
       ),
     ).toBeInTheDocument()
 
@@ -434,7 +434,7 @@ describe('Customer page: drop-off and pickup together', () => {
     // Pickup: Monday afternoon or next Monday morning.
     expect(
       screen.getByText(
-        "Now select available dates for your pickup. It must be at least 3 hours after your drop-off, not counting days we're closed.",
+        "Now select available dates for your pickup. It must be at least 3 hours after your drop-off, counting only the days and hours we're open.",
       ),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Monday, October 19' })).toHaveAttribute(
@@ -458,16 +458,17 @@ describe('Customer page: drop-off and pickup together', () => {
     expect(screen.queryByText(/^Anything else we should know/)).not.toBeInTheDocument()
     expect(screen.getByText(/^Now your pickup, at least 3 hours after your drop-off\./))
       .toBeInTheDocument()
-    // Pickups come from the pickup availability, at least 3 hours after 11:50 AM.
-    expect(screen.getByRole('button', { name: 'Mon Oct 19 3:00 PM – 3:05 PM' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Mon Oct 19 4:00 PM – 4:05 PM' })).toBeInTheDocument()
+    // Pickups come from the pickup availability, at least 3 open hours after
+    // the 11:45 AM drop-off starts.
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 2:45 PM – 2:50 PM' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 3:45 PM – 3:50 PM' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Mon Oct 19 4:45 PM – 4:50 PM' })).toBeInTheDocument()
 
-    click('Mon Oct 19 4:00 PM – 4:05 PM')
+    click('Mon Oct 19 3:45 PM – 3:50 PM')
     click('Skip')
     expect(
       screen.getByText(
-        /You're all set: Drop-off on Mon Oct 19 11:45 AM – 11:50 AM and pickup on Mon Oct 19 4:00 PM – 4:05 PM/,
+        /You're all set: Drop-off on Mon Oct 19 11:45 AM – 11:50 AM and pickup on Mon Oct 19 3:45 PM – 3:50 PM/,
       ),
     ).toBeInTheDocument()
   })

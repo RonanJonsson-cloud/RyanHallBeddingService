@@ -8,8 +8,8 @@ import {
   PAIRED_SERVICE,
   addDays,
   availableServices,
-  dateAfterOpenTime,
   daysBetween,
+  earliestPickupDate,
   formatDate,
   formatDuration,
   formatRange,
@@ -176,8 +176,6 @@ function CustomerPage({ business }) {
     turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES,
   } = business
   const services = availableServices({ offerAppointments, offerHandoffs, handoffsTogether })
-  // Whether any weekday has no hours (those days don't count toward the gap).
-  const closedDays = new Set(businessHours.map((range) => range.day)).size < 7
 
   const [initial] = useState(() => startingChat(services, businessHours.length > 0))
   const [messages, setMessages] = useState(initial.messages)
@@ -252,7 +250,7 @@ function CustomerPage({ business }) {
         from: 'bot',
         text: `Now select available dates for your pickup. It must be at least ${formatDuration(
           turnaroundMinutes,
-        )} after your drop-off${closedDays ? ", not counting days we're closed" : ''}.`,
+        )} after your drop-off, counting only the days and hours we're open.`,
       })
       setStep('dates')
       return
@@ -366,14 +364,14 @@ function CustomerPage({ business }) {
 
   // While picking pickup dates, grey out dates too soon after the earliest
   // drop-off, and show extra days so a long gap still fits. Both count only
-  // days the business is open, like the gap itself.
+  // the business's open days and hours, like the gap itself.
   const today = toDateString(new Date())
   let calendarStart = today
   let calendarDays = BOOKING_WINDOW_DAYS
   if (service === PAIRED_SERVICE && dropOffHours !== null) {
     const first = dropOffHours[0]
-    const earliestPickup = dateAfterOpenTime(first.date, first.start, turnaroundMinutes, businessHours)
-    const lastPickup = dateAfterOpenTime(
+    const earliestPickup = earliestPickupDate(first.date, first.start, turnaroundMinutes, businessHours)
+    const lastPickup = earliestPickupDate(
       addDays(today, BOOKING_WINDOW_DAYS - 1),
       '23:59',
       turnaroundMinutes,

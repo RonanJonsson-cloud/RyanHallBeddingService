@@ -182,30 +182,65 @@ export function daysBetween(from, to) {
   return (timelineMinutes(to, '00:00') - timelineMinutes(from, '00:00')) / 1440
 }
 
-// Adds `minutes` to a timeline time, counting only days the business is
-// open (has hours): a closed day adds nothing, so a 2-day gap from Friday
-// with weekends closed ends on Tuesday. Infinity if it's never open.
-export function addOpenTime(start, minutes, businessHours) {
-  const openDays = new Set(businessHours.map((range) => range.day))
-  if (openDays.size === 0) return Infinity
-  let time = start
-  let remaining = minutes
-  for (;;) {
-    const dayNumber = Math.floor(time / 1440)
-    const dayEnd = (dayNumber + 1) * 1440
-    // Day 0 of the timeline, January 1, 1970, was a Thursday.
-    if (openDays.has(DAYS[(dayNumber + 3) % 7])) {
-      if (time + remaining <= dayEnd) return time + remaining
-      remaining -= dayEnd - time
-    }
-    time = dayEnd
+// How far ahead to look for open time before giving up (e.g. a long gap at
+// a business that's open one short day a week).
+const MAX_SEARCH_DAYS = 2 * 366
+
+// The business's open windows on one date, busy times removed and
+// overlapping ranges merged, as [start, end] timeline minutes.
+function openWindowsOn(date, businessHours) {
+  const weekday = weekdayOf(date)
+  const windows = businessHours
+    .filter((range) => range.day === weekday)
+    .flatMap(freeWindows)
+    .map((w) => [timelineMinutes(date, w.start), timelineMinutes(date, w.end)])
+    .sort((a, b) => a[0] - b[0])
+  const merged = []
+  for (const [start, end] of windows) {
+    const last = merged[merged.length - 1]
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end)
+    else merged.push([start, end])
   }
+  return merged
 }
 
-// The date a gap of open time ends on, starting from `date` at `time`.
-// null if the business is never open.
-export function dateAfterOpenTime(date, time, minutes, businessHours) {
-  const end = addOpenTime(timelineMinutes(date, time), minutes, businessHours)
+// The earliest a pickup may start after a drop-off starting at `date`
+// `time`, for a gap of `turnaroundMinutes` (see timelineMinutes):
+//  - whole days move to the same time of day on a later day the business
+//    is open, skipping closed days (Fri 10 AM + 2 days -> Tue 10 AM when
+//    closed weekends);
+//  - leftover hours count only the business's open hours, skipping nights,
+//    busy times and closed days (Fri 3 PM + 3 hours -> Mon 10 AM when open
+//    9–5 on weekdays).
+// Infinity if the business is never open.
+export function earliestPickup(date, time, turnaroundMinutes, businessHours) {
+  const openDays = new Set(businessHours.map((range) => range.day))
+  if (openDays.size === 0) return Infinity
+
+  let day = date
+  for (let counted = 0; counted < Math.floor(turnaroundMinutes / 1440); ) {
+    day = addDays(day, 1)
+    if (openDays.has(weekdayOf(day))) counted++
+  }
+
+  let cursor = timelineMinutes(day, time)
+  let remaining = turnaroundMinutes % 1440
+  if (remaining === 0) return cursor
+  for (let i = 0; i < MAX_SEARCH_DAYS; i++, day = addDays(day, 1)) {
+    for (const [start, end] of openWindowsOn(day, businessHours)) {
+      if (end <= cursor) continue
+      const from = Math.max(start, cursor)
+      if (from + remaining <= end) return from + remaining
+      remaining -= end - from
+      cursor = end
+    }
+  }
+  return Infinity
+}
+
+// The date of earliestPickup, or null if the business is never open.
+export function earliestPickupDate(date, time, turnaroundMinutes, businessHours) {
+  const end = earliestPickup(date, time, turnaroundMinutes, businessHours)
   return end === Infinity ? null : dateOnTimeline(end)
 }
 
@@ -336,14 +371,13 @@ export function suggestDropOffs(
   const lastPickupStart = timelineMinutes(last.date, last.start)
   const withRoom = slots.filter(
     (slot) =>
-      addOpenTime(timelineMinutes(slot.date, slot.end), turnaroundMinutes, businessHours) <=
-      lastPickupStart,
+      earliestPickup(slot.date, slot.start, turnaroundMinutes, businessHours) <= lastPickupStart,
   )
   return spreadOverEarliestDate(withRoom, max)
 }
 
 // Pickup times for a paired booking, at least `turnaroundMinutes` after
-// the chosen drop-off ends.
+// the chosen drop-off starts (see earliestPickup).
 export function suggestPickups(
   businessHours,
   customerHours,
@@ -353,10 +387,6 @@ export function suggestPickups(
   return suggestSlots(businessHours, customerHours, {
     minutes: HANDOFF_MINUTES,
     max,
-    notBefore: addOpenTime(
-      timelineMinutes(dropOff.date, dropOff.end),
-      turnaroundMinutes,
-      businessHours,
-    ),
+    notBefore: earliestPickup(dropOff.date, dropOff.start, turnaroundMinutes, businessHours),
   })
 }
