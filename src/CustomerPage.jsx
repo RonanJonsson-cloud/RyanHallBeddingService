@@ -5,7 +5,6 @@ import {
   BOOKING_WINDOW_DAYS,
   DEFAULT_APPOINTMENT_MINUTES,
   DEFAULT_TURNAROUND_MINUTES,
-  HANDOFF_MINUTES,
   PAIRED_SERVICE,
   availableServices,
   formatDate,
@@ -26,24 +25,11 @@ const GREETING = {
   text: "Hi! I'll help you find a time. What do you need?",
 }
 
-const DATES_QUESTION =
-  'Which dates work for you? Tap all that work, then press Next. Greyed-out dates are when the business is closed.'
 const COMMENTS_QUESTION = 'Anything else we should know?'
 const MAX_COMMENT_LENGTH = 500
 
 function slotLabel(slot) {
   return `${formatDate(slot.date)} ${formatRange(slot)}`
-}
-
-// "Appointments take 45 minutes." and friends.
-function serviceIntro(service, { appointmentMinutes, turnaroundMinutes }) {
-  if (service === PAIRED_SERVICE) {
-    return `You'll book a drop-off first, then a pickup at least ${formatDuration(
-      turnaroundMinutes,
-    )} later. Each takes ${formatDuration(HANDOFF_MINUTES)}.`
-  }
-  const plural = service === 'Appointment' ? 'Appointments' : `${service}s`
-  return `${plural} take ${formatDuration(serviceMinutes(service, appointmentMinutes))}.`
 }
 
 function matchesText(matches, what) {
@@ -54,11 +40,18 @@ function matchesText(matches, what) {
 
 const SERVICE_NAMES = {
   Appointment: 'an appointment',
+  Pickup: 'a pickup',
+  'Drop-off': 'a drop-off',
   [PAIRED_SERVICE]: 'a drop-off and pickup',
 }
 
+// "To book a pickup, please select available dates."
+function datesPrompt(service) {
+  return `To book ${SERVICE_NAMES[service]}, please select available dates.`
+}
+
 // With only one service on offer, skip straight to asking for dates.
-function startingChat(services, settings, hasHours) {
+function startingChat(services, hasHours) {
   if (!hasHours) {
     return {
       messages: [
@@ -80,14 +73,8 @@ function startingChat(services, settings, hasHours) {
   }
   if (services.length === 1) {
     const service = services[0]
-    const name = SERVICE_NAMES[service] ?? `a ${service.toLowerCase()}`
     return {
-      messages: [
-        {
-          from: 'bot',
-          text: `Hi! I'll help you book ${name}. ${serviceIntro(service, settings)} ${DATES_QUESTION}`,
-        },
-      ],
+      messages: [{ from: 'bot', text: `Hi! ${datesPrompt(service)}` }],
       step: 'dates',
       service,
     }
@@ -182,10 +169,9 @@ function CustomerPage({ business }) {
     handoffsTogether = false,
     turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES,
   } = business
-  const settings = { appointmentMinutes, turnaroundMinutes }
   const services = availableServices({ offerAppointments, offerHandoffs, handoffsTogether })
 
-  const [initial] = useState(() => startingChat(services, settings, businessHours.length > 0))
+  const [initial] = useState(() => startingChat(services, businessHours.length > 0))
   const [messages, setMessages] = useState(initial.messages)
   const [step, setStep] = useState(initial.step)
   const [service, setService] = useState(initial.service)
@@ -211,7 +197,7 @@ function CustomerPage({ business }) {
     setService(choice)
     say(
       { from: 'user', text: choice },
-      { from: 'bot', text: `${serviceIntro(choice, settings)} ${DATES_QUESTION}` },
+      { from: 'bot', text: datesPrompt(choice) },
     )
     setStep('dates')
   }
@@ -334,7 +320,7 @@ function CustomerPage({ business }) {
   }
 
   function restart() {
-    const fresh = startingChat(services, settings, businessHours.length > 0)
+    const fresh = startingChat(services, businessHours.length > 0)
     setMessages(fresh.messages)
     setStep(fresh.step)
     setService(fresh.service)

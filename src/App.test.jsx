@@ -271,7 +271,7 @@ describe('Customer page (from a shared link)', () => {
   it('walks through the chat and suggests times across the earliest matching day', () => {
     renderCustomerLink(business)
     click('Appointment')
-    expect(screen.getByText(/^Appointments take 30 minutes\./)).toBeInTheDocument()
+    expect(screen.getByText('To book an appointment, please select available dates.')).toBeInTheDocument()
     click('Wednesday, October 21')
     click('Monday, October 19')
     click('Next')
@@ -314,7 +314,7 @@ describe('Customer page (from a shared link)', () => {
   it('suggests 5-minute slots for a pickup', () => {
     renderCustomerLink(business)
     click('Pickup')
-    expect(screen.getByText(/^Pickups take 5 minutes\./)).toBeInTheDocument()
+    expect(screen.getByText('To book a pickup, please select available dates.')).toBeInTheDocument()
     click('Monday, October 19')
     click('Next')
     fireEvent.change(screen.getByLabelText('From'), { target: { value: '09:00' } })
@@ -334,7 +334,7 @@ describe('Customer page (from a shared link)', () => {
       hours: [{ day: 'Tuesday', start: '09:00', end: '12:00', breaks: [] }],
     })
     click('Appointment')
-    expect(screen.getByText(/^Appointments take 1 hour\./)).toBeInTheDocument()
+    expect(screen.getByText('To book an appointment, please select available dates.')).toBeInTheDocument()
     click('Tuesday, October 20')
     click('Next')
     click('Send')
@@ -380,7 +380,7 @@ describe('Customer page: appointments only', () => {
       hours: [{ day: 'Monday', start: '09:00', end: '12:00', breaks: [] }],
     })
     expect(
-      screen.getByText(/^Hi! I'll help you book an appointment\. Appointments take 1 hour\./),
+      screen.getByText('Hi! To book an appointment, please select available dates.'),
     ).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Pickup' })).not.toBeInTheDocument()
 
@@ -410,7 +410,7 @@ describe('Customer page: drop-off and pickup together', () => {
 
     click('Drop-off & pickup')
     expect(
-      screen.getByText(/^You'll book a drop-off first, then a pickup at least 3 hours later\./),
+      screen.getByText('To book a drop-off and pickup, please select available dates.'),
     ).toBeInTheDocument()
     click('Monday, October 19')
     click('Next')
@@ -476,7 +476,7 @@ describe('Customer page: no appointments', () => {
       hours,
     })
     expect(
-      screen.getByText(/^Hi! I'll help you book a drop-off and pickup\. You'll book a drop-off first/),
+      screen.getByText('Hi! To book a drop-off and pickup, please select available dates.'),
     ).toBeInTheDocument()
 
     click('Monday, October 19')
