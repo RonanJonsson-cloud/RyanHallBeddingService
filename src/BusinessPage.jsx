@@ -15,12 +15,20 @@ import {
 
 let nextId = 1
 
+// The business page calls busy blocks "unavailability".
+const UNAVAILABILITY = 'Unavailability'
+const UNAVAILABILITY_WORDING = {
+  add: '+ Add unavailability',
+  from: 'Unavailable from',
+  item: UNAVAILABILITY,
+}
+
 function AddBreakForm({ range, onSave, onCancel }) {
   const [breaks, setBreaks] = useState(() => [defaultBreak(range.start, range.end)])
   const [error, setError] = useState('')
 
   function handleSave() {
-    const message = rangeError(range.start, range.end, breaks)
+    const message = rangeError(range.start, range.end, breaks, UNAVAILABILITY)
     if (message) {
       setError(message)
       return
@@ -35,6 +43,7 @@ function AddBreakForm({ range, onSave, onCancel }) {
         onChange={setBreaks}
         rangeStart={range.start}
         rangeEnd={range.end}
+        wording={UNAVAILABILITY_WORDING}
       />
       {error && (
         <p className="error" role="alert">
@@ -214,13 +223,13 @@ function BusinessPage({ settings, onSettingsChange, hours, onChange }) {
 
   function handleAdd(event) {
     event.preventDefault()
-    const message = rangeError(start, end, breaks)
+    const message = rangeError(start, end, breaks, UNAVAILABILITY)
     if (message) {
       setError(message)
       return
     }
     setError('')
-    // Day, times and busy blocks stay filled in, so the same schedule
+    // Day, times and unavailability stay filled in, so the same schedule
     // can be added to another day with two taps.
     onChange([...hours, { id: nextId++, day, start, end, breaks }])
   }
@@ -263,7 +272,13 @@ function BusinessPage({ settings, onSettingsChange, hours, onChange }) {
               <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
             </label>
           </div>
-          <BreaksEditor breaks={breaks} onChange={setBreaks} rangeStart={start} rangeEnd={end} />
+          <BreaksEditor
+            breaks={breaks}
+            onChange={setBreaks}
+            rangeStart={start}
+            rangeEnd={end}
+            wording={UNAVAILABILITY_WORDING}
+          />
           {error && (
             <p className="error" role="alert">
               {error}
@@ -300,11 +315,11 @@ function BusinessPage({ settings, onSettingsChange, hours, onChange }) {
                     <ul className="busy-list">
                       {range.breaks.map((b) => (
                         <li key={b.id} className="busy-item">
-                          <span>Busy {formatRange(b)}</span>
+                          <span>Unavailable {formatRange(b)}</span>
                           <button
                             type="button"
                             className="button link small"
-                            aria-label={`Remove busy time ${formatRange(b)} from ${label}`}
+                            aria-label={`Remove unavailability ${formatRange(b)} from ${label}`}
                             onClick={() =>
                               updateBreaks(
                                 range.id,
@@ -332,10 +347,10 @@ function BusinessPage({ settings, onSettingsChange, hours, onChange }) {
                     <button
                       type="button"
                       className="button link small"
-                      aria-label={`Add busy time to ${label}`}
+                      aria-label={`Add unavailability to ${label}`}
                       onClick={() => setAddingBreakTo(range.id)}
                     >
-                      + Add busy time
+                      + Add unavailability
                     </button>
                   )}
                 </li>

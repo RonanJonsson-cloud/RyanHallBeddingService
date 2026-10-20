@@ -525,3 +525,14 @@ describe('earliestPickup: only open days and hours count', () => {
     expect(pickups[0]).toEqual({ date: NEXT_TUE, start: '10:00', end: '10:05' })
   })
 })
+
+describe('rangeError with a custom name for breaks', () => {
+  it('uses the given name in its messages', () => {
+    expect(rangeError('09:00', '17:00', [{ start: '13:00', end: '12:00' }], 'Unavailability')).toBe(
+      'Unavailability must end after it starts.',
+    )
+    expect(rangeError('09:00', '12:00', [{ start: '11:30', end: '13:00' }], 'Unavailability')).toBe(
+      'Unavailability must fall between 9:00 AM and 12:00 PM.',
+    )
+  })
+})

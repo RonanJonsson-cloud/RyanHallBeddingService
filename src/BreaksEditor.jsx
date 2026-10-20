@@ -18,8 +18,16 @@ export function defaultBreak(start, end) {
   }
 }
 
+// What the editor calls its blocks. Customers see "busy time"; the business
+// page passes its own wording.
+const CUSTOMER_WORDING = {
+  add: '+ Add a busy time (lunch, class…)',
+  from: 'Busy from',
+  item: 'Break',
+}
+
 // Edits a list of busy blocks (lunch, a class, etc.) inside a time range.
-function BreaksEditor({ breaks, onChange, rangeStart, rangeEnd }) {
+function BreaksEditor({ breaks, onChange, rangeStart, rangeEnd, wording = CUSTOMER_WORDING }) {
   function update(id, field, value) {
     onChange(breaks.map((b) => (b.id === id ? { ...b, [field]: value } : b)))
   }
@@ -29,10 +37,10 @@ function BreaksEditor({ breaks, onChange, rangeStart, rangeEnd }) {
       {breaks.map((b, index) => (
         <div key={b.id} className="break-row">
           <label className="field">
-            Busy from
+            {wording.from}
             <input
               type="time"
-              aria-label={`Break ${index + 1} start`}
+              aria-label={`${wording.item} ${index + 1} start`}
               value={b.start}
               onChange={(e) => update(b.id, 'start', e.target.value)}
             />
@@ -41,7 +49,7 @@ function BreaksEditor({ breaks, onChange, rangeStart, rangeEnd }) {
             Until
             <input
               type="time"
-              aria-label={`Break ${index + 1} end`}
+              aria-label={`${wording.item} ${index + 1} end`}
               value={b.end}
               onChange={(e) => update(b.id, 'end', e.target.value)}
             />
@@ -49,7 +57,7 @@ function BreaksEditor({ breaks, onChange, rangeStart, rangeEnd }) {
           <button
             type="button"
             className="button small remove-break"
-            aria-label={`Remove break ${index + 1}`}
+            aria-label={`Remove ${wording.item.toLowerCase()} ${index + 1}`}
             onClick={() => onChange(breaks.filter((other) => other.id !== b.id))}
           >
             ✕
@@ -61,7 +69,7 @@ function BreaksEditor({ breaks, onChange, rangeStart, rangeEnd }) {
         className="button link add-break"
         onClick={() => onChange([...breaks, defaultBreak(rangeStart, rangeEnd)])}
       >
-        + Add a busy time (lunch, class…)
+        {wording.add}
       </button>
     </div>
   )

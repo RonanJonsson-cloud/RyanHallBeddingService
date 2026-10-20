@@ -54,40 +54,40 @@ describe('Business page', () => {
     expect(screen.getByText('No hours added yet.')).toBeInTheDocument()
   })
 
-  it('adds a busy time while entering hours', () => {
+  it('adds unavailability while entering hours', () => {
     render(<App />)
     fireEvent.change(screen.getByLabelText('Day'), { target: { value: 'Monday' } })
-    click('+ Add a busy time (lunch, class…)')
-    fireEvent.change(screen.getByLabelText('Break 1 start'), { target: { value: '12:00' } })
-    fireEvent.change(screen.getByLabelText('Break 1 end'), { target: { value: '13:00' } })
+    click('+ Add unavailability')
+    fireEvent.change(screen.getByLabelText('Unavailability 1 start'), { target: { value: '12:00' } })
+    fireEvent.change(screen.getByLabelText('Unavailability 1 end'), { target: { value: '13:00' } })
     click('Add hours')
 
     const list = screen.getByRole('list', { name: 'Available hours' })
-    expect(within(list).getByText('Busy 12:00 PM – 1:00 PM')).toBeInTheDocument()
+    expect(within(list).getByText('Unavailable 12:00 PM – 1:00 PM')).toBeInTheDocument()
   })
 
-  it('adds and removes a busy time on hours already in the list', () => {
+  it('adds and removes unavailability on hours already in the list', () => {
     render(<App />)
     addBusinessHours('Friday', '09:00', '17:00')
 
-    click('Add busy time to Friday 9:00 AM – 5:00 PM')
+    click('Add unavailability to Friday 9:00 AM – 5:00 PM')
     click('Save')
     const list = screen.getByRole('list', { name: 'Available hours' })
-    expect(within(list).getByText('Busy 12:00 PM – 1:00 PM')).toBeInTheDocument()
+    expect(within(list).getByText('Unavailable 12:00 PM – 1:00 PM')).toBeInTheDocument()
 
-    click('Remove busy time 12:00 PM – 1:00 PM from Friday 9:00 AM – 5:00 PM')
-    expect(within(list).queryByText(/Busy/)).not.toBeInTheDocument()
+    click('Remove unavailability 12:00 PM – 1:00 PM from Friday 9:00 AM – 5:00 PM')
+    expect(within(list).queryByText(/Unavailable/)).not.toBeInTheDocument()
   })
 
-  it('rejects a busy time outside the hours', () => {
+  it('rejects unavailability outside the hours', () => {
     render(<App />)
-    click('+ Add a busy time (lunch, class…)')
-    fireEvent.change(screen.getByLabelText('Break 1 start'), { target: { value: '18:00' } })
-    fireEvent.change(screen.getByLabelText('Break 1 end'), { target: { value: '19:00' } })
+    click('+ Add unavailability')
+    fireEvent.change(screen.getByLabelText('Unavailability 1 start'), { target: { value: '18:00' } })
+    fireEvent.change(screen.getByLabelText('Unavailability 1 end'), { target: { value: '19:00' } })
     click('Add hours')
 
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Breaks must fall between 9:00 AM and 5:00 PM.',
+      'Unavailability must fall between 9:00 AM and 5:00 PM.',
     )
     expect(screen.getByText('No hours added yet.')).toBeInTheDocument()
   })

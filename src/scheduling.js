@@ -96,12 +96,17 @@ export function isValidRange(start, end) {
 }
 
 // Returns an error message, or '' if the range and its breaks are fine.
-export function rangeError(start, end, breaks = []) {
+// `breakName` replaces "break" in the messages (e.g. "Unavailability").
+export function rangeError(start, end, breaks = [], breakName = null) {
   if (!isValidRange(start, end)) return 'End time must be after start time.'
   for (const b of breaks) {
-    if (!isValidRange(b.start, b.end)) return 'Each break must end after it starts.'
+    if (!isValidRange(b.start, b.end)) {
+      return breakName
+        ? `${breakName} must end after it starts.`
+        : 'Each break must end after it starts.'
+    }
     if (toMinutes(b.start) < toMinutes(start) || toMinutes(b.end) > toMinutes(end)) {
-      return `Breaks must fall between ${formatTime(start)} and ${formatTime(end)}.`
+      return `${breakName ?? 'Breaks'} must fall between ${formatTime(start)} and ${formatTime(end)}.`
     }
   }
   return ''
