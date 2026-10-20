@@ -45,7 +45,7 @@ function SharePanel({ business }) {
     return (
       <section className="card share">
         <h2>Share with customers</h2>
-        <p className="hint">Add your hours above to get a customer link and QR code.</p>
+        <p className="hint">Add hours to get a link.</p>
       </section>
     )
   }
@@ -54,9 +54,7 @@ function SharePanel({ business }) {
     return (
       <section className="card share">
         <h2>Share with customers</h2>
-        <p className="hint">
-          Turn on appointments or pickups and drop-offs above to get a customer link and QR code.
-        </p>
+        <p className="hint">Turn on a service to get a link.</p>
       </section>
     )
   }
@@ -69,10 +67,7 @@ function SharePanel({ business }) {
     return (
       <section className="card share">
         <h2>Share with customers</h2>
-        <p className="hint">
-          Fix the minimum time between drop-off and pickup above to get a customer link and QR
-          code.
-        </p>
+        <p className="hint">Fix the minimum time to get a link.</p>
       </section>
     )
   }
@@ -93,10 +88,6 @@ function SharePanel({ business }) {
   return (
     <section className="card share">
       <h2>Share with customers</h2>
-      <p className="hint">
-        Customers who open this link or scan this code go straight to your booking chat.
-      </p>
-
       <div className="qr" ref={qrRef}>
         <QRCodeSVG
           value={link}
@@ -130,10 +121,7 @@ function SharePanel({ business }) {
         </a>
       </div>
 
-      <p className="note">
-        Your hours and settings are built into this link. If you change them, share
-        the new link or QR code — older ones keep showing the old settings.
-      </p>
+      <p className="note">Changes make a new link and QR code.</p>
     </section>
   )
 }

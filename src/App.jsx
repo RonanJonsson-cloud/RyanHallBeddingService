@@ -53,7 +53,6 @@ function BusinessView() {
     <div className="app">
       <header className="app-header">
         <h1>RHBScheduler</h1>
-        <p className="tagline">Set your hours, then share your booking link</p>
       </header>
       <main className="content">
         <BusinessPage

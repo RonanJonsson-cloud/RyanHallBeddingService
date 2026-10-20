@@ -109,7 +109,6 @@ describe('Appointment settings', () => {
 
     fireEvent.click(offer)
     expect(screen.queryByLabelText('Appointment length')).not.toBeInTheDocument()
-    expect(screen.getByText("Customers can't book appointments.")).toBeInTheDocument()
   })
 
   it('warns and hides the link when nothing can be booked', () => {
@@ -118,9 +117,8 @@ describe('Appointment settings', () => {
     fireEvent.click(screen.getByLabelText('Offer appointments'))
     fireEvent.click(screen.getByLabelText('Offer pickups and drop-offs'))
 
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Turn on appointments or pickups and drop-offs',
-    )
+    expect(screen.getByRole('alert')).toHaveTextContent('Turn on at least one service.')
+    expect(screen.getByText('Turn on a service to get a link.')).toBeInTheDocument()
     expect(screen.queryByLabelText('Customer link')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText('Offer pickups and drop-offs'))
@@ -146,7 +144,7 @@ describe('Pickup and drop-off settings', () => {
     expect(screen.getByLabelText('Hours')).toHaveValue(3)
 
     fireEvent.click(offer)
-    expect(screen.getByText("Customers can't book pickups or drop-offs.")).toBeInTheDocument()
+    expect(screen.queryByText('5 minutes each.')).not.toBeInTheDocument()
     expect(
       screen.queryByLabelText('Schedule drop-off and pickup together'),
     ).not.toBeInTheDocument()
@@ -175,11 +173,9 @@ describe('Pickup and drop-off settings', () => {
 
     fireEvent.change(days, { target: { value: '1' } })
     fireEvent.change(hours, { target: { value: '6' } })
-    expect(
-      screen.getByText(
-        /^Pickups will be at least 1 day 6 hours after the drop-off\. Days skip days you're closed/,
-      ),
-    ).toBeInTheDocument()
+    expect(screen.getByText('Only open days and hours count.')).toBeInTheDocument()
+    expect(days).toHaveValue(1)
+    expect(hours).toHaveValue(6)
 
     // Boxes can't go past their limits.
     fireEvent.change(days, { target: { value: '40' } })
@@ -196,8 +192,7 @@ describe('Pickup and drop-off settings', () => {
     fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '0' } })
     expect(screen.getByRole('alert')).toHaveTextContent('at least 1 hour')
     expect(screen.queryByLabelText('Customer link')).not.toBeInTheDocument()
-    expect(screen.getByText(/Fix the minimum time between drop-off and pickup/))
-      .toBeInTheDocument()
+    expect(screen.getByText('Fix the minimum time to get a link.')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Days'), { target: { value: '28' } })
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
@@ -213,7 +208,7 @@ describe('Share panel', () => {
   it('asks for hours before offering a link', () => {
     render(<App />)
     expect(
-      screen.getByText('Add your hours above to get a customer link and QR code.'),
+      screen.getByText('Add hours to get a link.'),
     ).toBeInTheDocument()
     expect(screen.queryByLabelText('Customer link')).not.toBeInTheDocument()
   })

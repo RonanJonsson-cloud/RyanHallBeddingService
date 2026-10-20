@@ -104,11 +104,7 @@ function TurnaroundInput({ minutes, onChange }) {
           {error}
         </p>
       ) : (
-        <p className="note">
-          Pickups will be at least {formatDuration(minutes)} after the drop-off. Days skip days
-          you're closed and keep the drop-off's time of day; hours count only while you're open.
-          Up to {MAX_TURNAROUND_DAYS} days.
-        </p>
+        <p className="note">Only open days and hours count.</p>
       )}
     </fieldset>
   )
@@ -141,10 +137,6 @@ function SettingsCard({ settings, onSettingsChange }) {
             />
             Offer appointments
           </label>
-          {!settings.offerAppointments && (
-            <p className="note">Customers can't book appointments.</p>
-          )}
-
           {settings.offerAppointments && (
             <label className="field">
               Appointment length
@@ -174,11 +166,9 @@ function SettingsCard({ settings, onSettingsChange }) {
             />
             Offer pickups and drop-offs
           </label>
-          <p className="note">
-            {settings.offerHandoffs
-              ? `Each one takes ${formatDuration(HANDOFF_MINUTES)}.`
-              : "Customers can't book pickups or drop-offs."}
-          </p>
+          {settings.offerHandoffs && (
+            <p className="note">{formatDuration(HANDOFF_MINUTES)} each.</p>
+          )}
 
           {settings.offerHandoffs && (
             <>
@@ -190,11 +180,9 @@ function SettingsCard({ settings, onSettingsChange }) {
                 />
                 Schedule drop-off and pickup together
               </label>
-              <p className="note">
-                {settings.handoffsTogether
-                  ? 'Customers must book both: a drop-off first, then a pickup.'
-                  : 'Customers book a pickup or a drop-off on its own.'}
-              </p>
+              {settings.handoffsTogether && (
+                <p className="note">Drop-off first, then pickup.</p>
+              )}
             </>
           )}
 
@@ -209,7 +197,7 @@ function SettingsCard({ settings, onSettingsChange }) {
 
       {!settings.offerAppointments && !settings.offerHandoffs && (
         <p className="error" role="alert">
-          Turn on appointments or pickups and drop-offs so customers have something to book.
+          Turn on at least one service.
         </p>
       )}
     </section>
@@ -252,9 +240,8 @@ function BusinessPage({ settings, onSettingsChange, hours, onChange }) {
       <section>
         <h2>Your available hours</h2>
         <p className="hint">
-          Add each day and time range when you can take bookings. These hours repeat every week,
-          and customers book specific dates up to 4 weeks ahead. Use a busy time to block out
-          lunch or anything else in the middle of the day.
+          Add your available days and time ranges, these hours repeat every week. Customers may
+          book up to 4 weeks in advance.
         </p>
 
         <form className="card" onSubmit={handleAdd}>
