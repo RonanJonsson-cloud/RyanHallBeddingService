@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import BreaksEditor, { defaultBreak } from './BreaksEditor.jsx'
 import SharePanel from './SharePanel.jsx'
+import { MAX_EMAIL_LENGTH, emailError, phoneError } from './contact.js'
 import {
   APPOINTMENT_LENGTHS,
   DAYS,
@@ -119,6 +120,56 @@ function TurnaroundInput({ minutes, onChange }) {
   )
 }
 
+// Where customers send their booking requests (email and/or text).
+function ContactBox({ settings, onChange }) {
+  // Only show a format error once the business leaves the field.
+  const [touched, setTouched] = useState({ email: false, phone: false })
+  const emailProblem = touched.email && emailError(settings.contactEmail)
+  const phoneProblem = touched.phone && phoneError(settings.contactPhone)
+
+  return (
+    <fieldset className="option-group">
+      <legend>Customer requests sent to</legend>
+      <div className="option-box">
+        <label className="field">
+          Email
+          <input
+            type="email"
+            inputMode="email"
+            autoComplete="email"
+            maxLength={MAX_EMAIL_LENGTH}
+            value={settings.contactEmail}
+            onChange={(e) => onChange('contactEmail', e.target.value.trim())}
+            onBlur={() => setTouched({ ...touched, email: true })}
+          />
+        </label>
+        {emailProblem && (
+          <p className="error" role="alert">
+            {emailProblem}
+          </p>
+        )}
+        <label className="field">
+          Phone (for texts)
+          <input
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            maxLength={20}
+            value={settings.contactPhone}
+            onChange={(e) => onChange('contactPhone', e.target.value.trim())}
+            onBlur={() => setTouched({ ...touched, phone: true })}
+          />
+        </label>
+        {phoneProblem && (
+          <p className="error" role="alert">
+            {phoneProblem}
+          </p>
+        )}
+      </div>
+    </fieldset>
+  )
+}
+
 function SettingsCard({ settings, onSettingsChange }) {
   function set(field, value) {
     onSettingsChange({ ...settings, [field]: value })
@@ -203,6 +254,8 @@ function SettingsCard({ settings, onSettingsChange }) {
           )}
         </div>
       </fieldset>
+
+      <ContactBox settings={settings} onChange={set} />
 
       {!settings.offerAppointments && !settings.offerHandoffs && (
         <p className="error" role="alert">

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import BreaksEditor from './BreaksEditor.jsx'
 import DatePicker from './DatePicker.jsx'
+import { emailLink, textLink } from './contact.js'
 import {
   BOOKING_WINDOW_DAYS,
   DEFAULT_APPOINTMENT_MINUTES,
@@ -230,6 +231,9 @@ function CustomerPage({ business }) {
     offerHandoffs = true,
     handoffsTogether = false,
     turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES,
+    name: businessName = '',
+    contactEmail = '',
+    contactPhone = '',
   } = business
   const services = availableServices({ offerAppointments, offerHandoffs, handoffsTogether })
 
@@ -246,9 +250,18 @@ function CustomerPage({ business }) {
   // before picking a pickup.
   const [dropOffHours, setDropOffHours] = useState(null)
   const [dropOff, setDropOff] = useState(null)
-  // The booking summary, held while the customer adds any comments.
+  // The booking summary and comment, held until the request is sent.
   const [booked, setBooked] = useState('')
+  const [comment, setComment] = useState('')
+  const [sent, setSent] = useState(false)
   const bottomRef = useRef(null)
+
+  // What the customer's email or text to the business says.
+  const requestText = [
+    `Booking request for ${businessName || 'your business'}`,
+    `${booked}.`,
+    ...(comment ? [`Comments: ${comment}`] : []),
+  ].join('\n')
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'end' })
@@ -391,17 +404,36 @@ function CustomerPage({ business }) {
     confirm()
   }
 
-  function submitComment(comment) {
-    say({ from: 'user', text: comment })
-    confirm(' Thanks for your note.')
+  function submitComment(note) {
+    say({ from: 'user', text: note })
+    confirm(' Thanks for your note.', note)
   }
 
-  function confirm(extra = '') {
+  function confirm(extra = '', note = '') {
+    setComment(note)
+    // Links made without contact details can't send anything.
+    if (!contactEmail && !contactPhone) {
+      say({
+        from: 'bot',
+        text: `You're all set: ${booked}.${extra} (This is a demo, so nothing is saved yet.)`,
+      })
+      setStep('done')
+      return
+    }
     say({
       from: 'bot',
-      text: `You're all set: ${booked}.${extra} (This is a demo, so nothing is saved yet.)`,
+      text: `Your request: ${booked}.${extra} Send it to the business and they'll confirm your time.`,
     })
-    setStep('done')
+    setStep('send')
+  }
+
+  function markSent() {
+    if (sent) return
+    setSent(true)
+    say({
+      from: 'bot',
+      text: 'Thanks! The business will confirm your time once they get your request.',
+    })
   }
 
   function restart() {
@@ -416,6 +448,8 @@ function CustomerPage({ business }) {
     setDropOffHours(null)
     setDropOff(null)
     setBooked('')
+    setComment('')
+    setSent(false)
   }
 
   // While picking pickup dates, grey out dates too soon after the earliest
@@ -528,6 +562,29 @@ function CustomerPage({ business }) {
         )}
 
         {step === 'comment' && <CommentForm onSubmit={submitComment} />}
+
+        {step === 'send' && (
+          <div className="choices">
+            {contactEmail && (
+              <a
+                className="button primary"
+                href={emailLink(contactEmail, `Booking request: ${service}`, requestText)}
+                onClick={markSent}
+              >
+                Send by email
+              </a>
+            )}
+            {contactPhone && (
+              <a
+                className="button primary"
+                href={textLink(contactPhone, requestText)}
+                onClick={markSent}
+              >
+                Send by text
+              </a>
+            )}
+          </div>
+        )}
 
         {messages.length > 1 && (
           <button type="button" className="button link" onClick={restart}>

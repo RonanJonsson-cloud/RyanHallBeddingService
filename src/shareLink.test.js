@@ -11,6 +11,8 @@ const business = {
   offerHandoffs: true,
   handoffsTogether: true,
   turnaroundMinutes: 1440,
+  contactEmail: 'owner@example.com',
+  contactPhone: '+1 (555) 123-4567',
   hours: [
     {
       day: 'Monday',
@@ -44,6 +46,8 @@ describe('share links', () => {
   it('fills in defaults for links made before these settings existed', () => {
     const oldLink = encode({ n: 'X', h: [[0, '0900', '1700']] })
     expect(decodeBusiness(oldLink)).toMatchObject({
+      contactEmail: '',
+      contactPhone: '',
       offerAppointments: true,
       appointmentMinutes: 30,
       offerHandoffs: true,
@@ -77,6 +81,15 @@ describe('share links', () => {
   it('accepts a gap of up to 28 days', () => {
     const decoded = decodeBusiness(encodeBusiness({ ...business, turnaroundMinutes: 28 * 1440 }))
     expect(decoded.turnaroundMinutes).toBe(28 * 1440)
+  })
+
+  it('rejects bad contact details', () => {
+    for (const em of ['not-an-email', 'a@b', 42, 'x@y.com?cc=evil@z.com']) {
+      expect(decodeBusiness(encode({ n: 'X', em, h: [] }))).toBeNull()
+    }
+    for (const ph of ['123', 'call me', 5551234567]) {
+      expect(decodeBusiness(encode({ n: 'X', ph, h: [] }))).toBeNull()
+    }
   })
 
   it('rejects impossible pickup and drop-off settings', () => {

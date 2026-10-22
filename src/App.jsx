@@ -46,6 +46,8 @@ function BusinessView() {
     offerHandoffs: true,
     handoffsTogether: false,
     turnaroundMinutes: DEFAULT_TURNAROUND_MINUTES,
+    contactEmail: '',
+    contactPhone: '',
   })
   const [businessHours, setBusinessHours] = useState([])
 

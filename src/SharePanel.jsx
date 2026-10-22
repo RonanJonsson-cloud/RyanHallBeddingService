@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
 import { availableServices, turnaroundError } from './scheduling.js'
+import { contactError } from './contact.js'
 import { customerLink } from './shareLink.js'
 
 const DOWNLOAD_SIZE = 1024
@@ -68,6 +69,19 @@ function SharePanel({ business }) {
       <section className="card share">
         <h2>Share with customers</h2>
         <p className="hint">Fix the minimum time to get a link.</p>
+      </section>
+    )
+  }
+
+  if (contactError(business)) {
+    return (
+      <section className="card share">
+        <h2>Share with customers</h2>
+        <p className="hint">
+          {business.contactEmail || business.contactPhone
+            ? 'Fix the email or phone to get a link.'
+            : 'Add an email or phone to get a link.'}
+        </p>
       </section>
     )
   }

@@ -7,6 +7,11 @@ function click(name) {
   fireEvent.click(screen.getByRole('button', { name }))
 }
 
+// A link needs somewhere to send requests.
+function addEmail(email = 'owner@example.com') {
+  fireEvent.change(screen.getByLabelText('Email'), { target: { value: email } })
+}
+
 function addBusinessHours(day, start, end) {
   fireEvent.change(screen.getByLabelText('Day'), { target: { value: day } })
   fireEvent.change(screen.getByLabelText('Start time'), { target: { value: start } })
@@ -113,6 +118,7 @@ describe('Appointment settings', () => {
 
   it('warns and hides the link when nothing can be booked', () => {
     render(<App />)
+    addEmail()
     addBusinessHours('Monday', '09:00', '17:00')
     fireEvent.click(screen.getByLabelText('Offer appointments'))
     fireEvent.click(screen.getByLabelText('Offer pickups and drop-offs'))
@@ -152,6 +158,7 @@ describe('Pickup and drop-off settings', () => {
 
   it('puts the settings into the customer link', () => {
     render(<App />)
+    addEmail()
     fireEvent.click(screen.getByLabelText('Schedule drop-off and pickup together'))
     fireEvent.change(screen.getByLabelText('Days'), { target: { value: '2' } })
     fireEvent.change(screen.getByLabelText('Hours'), { target: { value: '0' } })
@@ -186,6 +193,7 @@ describe('Pickup and drop-off settings', () => {
 
   it('rejects gaps under 1 hour or over 28 days, and hides the link', () => {
     render(<App />)
+    addEmail()
     addBusinessHours('Monday', '09:00', '17:00')
     fireEvent.click(screen.getByLabelText('Schedule drop-off and pickup together'))
 
@@ -215,6 +223,7 @@ describe('Share panel', () => {
 
   it('creates a link and QR code that open this business on the customer page', () => {
     const { unmount } = render(<App />)
+    addEmail()
     fireEvent.change(screen.getByLabelText('Business name'), {
       target: { value: "Ryan's Laundry" },
     })
@@ -869,5 +878,139 @@ describe('Customer page: later dates start with the first date\'s times', () => 
     // Second pickup date: copied from the first pickup date.
     expect(screen.getByLabelText('From')).toHaveValue('15:00')
     expect(screen.getByLabelText('To')).toHaveValue('17:00')
+  })
+})
+
+describe('Contact details (backup: email and text)', () => {
+  it('needs an email or phone before showing a link', () => {
+    render(<App />)
+    addBusinessHours('Monday', '09:00', '17:00')
+    expect(screen.getByText('Add an email or phone to get a link.')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Customer link')).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Phone (for texts)'), {
+      target: { value: '+1 (555) 123-4567' },
+    })
+    expect(screen.getByLabelText('Customer link')).toBeInTheDocument()
+  })
+
+  it('checks the email and phone once the business leaves the field', () => {
+    render(<App />)
+    addBusinessHours('Monday', '09:00', '17:00')
+    const email = screen.getByLabelText('Email')
+    fireEvent.change(email, { target: { value: 'not-an-email' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    fireEvent.blur(email)
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid email address.')
+    expect(screen.getByText('Fix the email or phone to get a link.')).toBeInTheDocument()
+
+    fireEvent.change(email, { target: { value: 'owner@example.com' } })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    const phone = screen.getByLabelText('Phone (for texts)')
+    fireEvent.change(phone, { target: { value: '123' } })
+    fireEvent.blur(phone)
+    expect(screen.getByRole('alert')).toHaveTextContent('Enter a valid phone number.')
+  })
+
+  it('puts the email and phone into the link', () => {
+    render(<App />)
+    addEmail()
+    fireEvent.change(screen.getByLabelText('Phone (for texts)'), { target: { value: '5551234567' } })
+    addBusinessHours('Monday', '09:00', '17:00')
+    const link = screen.getByLabelText('Customer link').value
+    expect(decodeBusiness(new URL(link).searchParams.get('b'))).toMatchObject({
+      contactEmail: 'owner@example.com',
+      contactPhone: '5551234567',
+    })
+  })
+})
+
+describe('Customer page: sending the request', () => {
+  const business = {
+    name: 'Ryan Hall Bedding Service',
+    contactEmail: 'owner@example.com',
+    contactPhone: '+1 (555) 123-4567',
+    hours: [{ day: 'Monday', start: '09:00', end: '17:00', breaks: [] }],
+  }
+
+  function bookPickup(details = business) {
+    renderCustomerLink(details)
+    click('Pickup')
+    click('Monday, October 19')
+    click('Next')
+    click('Send')
+    click('Mon Oct 19 9:00 AM – 9:05 AM')
+  }
+
+  it('ends with buttons to send the request by email or text', () => {
+    bookPickup()
+    click('Yes')
+    fireEvent.change(screen.getByLabelText('Your comments'), { target: { value: 'Two beds.' } })
+    click('Send')
+
+    expect(
+      screen.getByText(
+        "Your request: Pickup on Mon Oct 19 9:00 AM – 9:05 AM. Thanks for your note. Send it to the business and they'll confirm your time.",
+      ),
+    ).toBeInTheDocument()
+
+    const body = [
+      'Booking request for Ryan Hall Bedding Service',
+      'Pickup on Mon Oct 19 9:00 AM – 9:05 AM.',
+      'Comments: Two beds.',
+    ].join('\n')
+    const email = screen.getByRole('link', { name: 'Send by email' })
+    expect(email).toHaveAttribute(
+      'href',
+      `mailto:owner@example.com?subject=${encodeURIComponent('Booking request: Pickup')}&body=${encodeURIComponent(body)}`,
+    )
+    const text = screen.getByRole('link', { name: 'Send by text' })
+    expect(text).toHaveAttribute('href', `sms:+15551234567?&body=${encodeURIComponent(body)}`)
+  })
+
+  it('thanks the customer once they tap a send button', () => {
+    bookPickup()
+    click('Skip')
+    const email = screen.getByRole('link', { name: 'Send by email' })
+    // Stop jsdom from trying to follow the mailto: link.
+    email.addEventListener('click', (event) => event.preventDefault())
+    fireEvent.click(email)
+    fireEvent.click(email)
+    expect(
+      screen.getAllByText('Thanks! The business will confirm your time once they get your request.'),
+    ).toHaveLength(1)
+    // The buttons stay, in case the app didn't open.
+    expect(screen.getByRole('link', { name: 'Send by email' })).toBeInTheDocument()
+  })
+
+  it('only shows the ways the business can be reached', () => {
+    bookPickup({ ...business, contactPhone: '' })
+    click('Skip')
+    expect(screen.getByRole('link', { name: 'Send by email' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Send by text' })).not.toBeInTheDocument()
+  })
+
+  it('includes both times for a drop-off and pickup', () => {
+    renderCustomerLink({
+      ...business,
+      offerAppointments: false,
+      handoffsTogether: true,
+      turnaroundMinutes: 60,
+    })
+    click('Monday, October 19')
+    click('Next')
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '10:00' } })
+    click('Send')
+    click('Monday, October 19')
+    click('Next')
+    click('Send')
+    click('Mon Oct 19 9:00 AM – 9:05 AM')
+    click('Mon Oct 19 10:00 AM – 10:05 AM')
+    click('Skip')
+    const href = screen.getByRole('link', { name: 'Send by text' }).getAttribute('href')
+    expect(decodeURIComponent(href)).toContain(
+      'Drop-off on Mon Oct 19 9:00 AM – 9:05 AM and pickup on Mon Oct 19 10:00 AM – 10:05 AM.',
+    )
   })
 })

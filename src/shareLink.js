@@ -5,6 +5,7 @@ import {
   MAX_TURNAROUND_MINUTES,
   isValidRange,
 } from './scheduling.js'
+import { emailError, phoneError } from './contact.js'
 
 // With no database yet, the business's name and hours travel inside the
 // customer link itself: ?b=<compact JSON, base64url-encoded>.
@@ -33,7 +34,8 @@ function fromBase64Url(encoded) {
 }
 
 // { name, offerAppointments, appointmentMinutes, offerHandoffs, handoffsTogether,
-//   turnaroundMinutes, hours: [{ day, start, end, breaks }] } -> short string.
+//   turnaroundMinutes, contactEmail, contactPhone,
+//   hours: [{ day, start, end, breaks }] } -> short string.
 // Days become 0–6 and times drop their colons to keep the QR code small.
 export function encodeBusiness({
   name,
@@ -42,6 +44,8 @@ export function encodeBusiness({
   offerHandoffs = true,
   handoffsTogether = false,
   turnaroundMinutes = DEFAULT_TURNAROUND_MINUTES,
+  contactEmail = '',
+  contactPhone = '',
   hours,
 }) {
   const handoffs = !offerHandoffs
@@ -56,6 +60,8 @@ export function encodeBusiness({
     a: appointmentMinutes,
     p: handoffs,
     ...(handoffs === HANDOFFS_TOGETHER && { t: turnaroundMinutes }),
+    ...(contactEmail && { em: contactEmail }),
+    ...(contactPhone && { ph: contactPhone }),
     h: hours.map((range) => [
       DAYS.indexOf(range.day),
       range.start.replace(':', ''),
@@ -94,6 +100,12 @@ export function decodeBusiness(encoded) {
     if (![HANDOFFS_OFF, HANDOFFS_SEPARATE, HANDOFFS_TOGETHER].includes(handoffs)) return null
     if (!isMinutes(turnaroundMinutes, 60, MAX_TURNAROUND_MINUTES)) return null
 
+    // Where to send booking requests; links can be edited, so check them.
+    const contactEmail = compact.em ?? ''
+    const contactPhone = compact.ph ?? ''
+    if (typeof contactEmail !== 'string' || emailError(contactEmail)) return null
+    if (typeof contactPhone !== 'string' || phoneError(contactPhone)) return null
+
     const hours = compact.h.map((entry) => {
       if (!Array.isArray(entry) || entry.length < 3 || entry.length % 2 === 0) throw new Error()
       const [dayIndex, ...times] = entry
@@ -115,6 +127,8 @@ export function decodeBusiness(encoded) {
       offerHandoffs: handoffs !== HANDOFFS_OFF,
       handoffsTogether: handoffs === HANDOFFS_TOGETHER,
       turnaroundMinutes,
+      contactEmail,
+      contactPhone,
       hours,
     }
   } catch {
