@@ -2,7 +2,9 @@
 
 [![CI](https://github.com/RonanJonsson-cloud/RyanHallBeddingService/actions/workflows/ci.yml/badge.svg)](https://github.com/RonanJonsson-cloud/RyanHallBeddingService/actions/workflows/ci.yml)
 
-**Live site:** https://main.d3l67rq3r8qdax.amplifyapp.com/
+**Live site:** https://main.d2pas0nuhvquyl.amplifyapp.com/
+
+**Backup (email/text requests):** https://backup-email-text.d2pas0nuhvquyl.amplifyapp.com/
 
 **GitHub:** https://github.com/RonanJonsson-cloud/RyanHallBeddingService
 
