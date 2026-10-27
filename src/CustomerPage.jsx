@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import BreaksEditor from './BreaksEditor.jsx'
 import DatePicker from './DatePicker.jsx'
+import { MAX_COMMENT_LENGTH, detailsError, withoutTaken } from './bookingRules.js'
 import {
   BOOKING_WINDOW_DAYS,
   DEFAULT_APPOINTMENT_MINUTES,
@@ -32,7 +33,8 @@ const GREETING = {
 }
 
 const COMMENTS_QUESTION = 'Anything else we should know?'
-const MAX_COMMENT_LENGTH = 500
+const DETAILS_QUESTION =
+  'Last step: your name, and an email or phone number so the business can reach you.'
 
 function slotLabel(slot) {
   return `${formatDate(slot.date)} ${formatRange(slot)}`
@@ -222,7 +224,55 @@ function CommentForm({ onSubmit }) {
   )
 }
 
-function CustomerPage({ business }) {
+function DetailsForm({ onSubmit }) {
+  const [name, setName] = useState('')
+  const [contact, setContact] = useState('')
+  const [error, setError] = useState('')
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    const details = { name: name.trim(), contact: contact.trim() }
+    const message = detailsError(details)
+    if (message) {
+      setError(message)
+      return
+    }
+    onSubmit(details)
+  }
+
+  return (
+    <form className="card" onSubmit={handleSubmit} noValidate aria-label="Your details">
+      <label className="field">
+        Your name
+        <input type="text" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label className="field">
+        Email or phone
+        <input
+          type="text"
+          autoComplete="email"
+          value={contact}
+          onChange={(e) => setContact(e.target.value)}
+        />
+      </label>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <button type="submit" className="button primary">
+        Book
+      </button>
+    </form>
+  )
+}
+
+// `taken` lists times already booked ({ date, start, end }), which are never
+// suggested. With `onBook`, the chat saves the booking: it asks for the
+// customer's details, then calls onBook({ service, slots, name, contact,
+// comments }), which resolves to { ok, message }. Without it, the chat ends
+// as a demo.
+function CustomerPage({ business, taken = [], onBook = null }) {
   const {
     hours: businessHours,
     offerAppointments = true,
@@ -246,8 +296,11 @@ function CustomerPage({ business }) {
   // before picking a pickup.
   const [dropOffHours, setDropOffHours] = useState(null)
   const [dropOff, setDropOff] = useState(null)
-  // The booking summary, held while the customer adds any comments.
+  // The booking summary and chosen slots, held while the customer adds any
+  // comments and details.
   const [booked, setBooked] = useState('')
+  const [chosen, setChosen] = useState([])
+  const [comment, setComment] = useState('')
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -316,8 +369,8 @@ function CustomerPage({ business }) {
     const notBefore = nowOnTimeline()
 
     if (service === PAIRED_SERVICE) {
-      const dropOffs = suggestDropOffs(businessHours, dropOffHours, {
-        pickupHours: updated,
+      const dropOffs = suggestDropOffs(businessHours, withoutTaken(dropOffHours, taken), {
+        pickupHours: withoutTaken(updated, taken),
         turnaroundMinutes,
         notBefore,
       })
@@ -337,7 +390,7 @@ function CustomerPage({ business }) {
       return
     }
 
-    const matches = suggestSlots(businessHours, updated, {
+    const matches = suggestSlots(businessHours, withoutTaken(updated, taken), {
       minutes: serviceMinutes(service, appointmentMinutes),
       notBefore,
     })
@@ -360,7 +413,9 @@ function CustomerPage({ business }) {
     // Paired booking, first pick: that was the drop-off; now offer pickups.
     // suggestDropOffs only offers drop-offs that leave room for a pickup.
     if (service === PAIRED_SERVICE && !dropOff) {
-      const pickups = suggestPickups(businessHours, customerHours, slot, { turnaroundMinutes })
+      const pickups = suggestPickups(businessHours, withoutTaken(customerHours, taken), slot, {
+        turnaroundMinutes,
+      })
       setDropOff(slot)
       setSlots(pickups)
       say({
@@ -377,6 +432,7 @@ function CustomerPage({ business }) {
         ? `Drop-off on ${slotLabel(dropOff)} and pickup on ${slotLabel(slot)}`
         : `${service} on ${slotLabel(slot)}`,
     )
+    setChosen(service === PAIRED_SERVICE ? [dropOff, slot] : [slot])
     say({ from: 'bot', text: COMMENTS_QUESTION })
     setStep('comments')
   }
@@ -388,12 +444,38 @@ function CustomerPage({ business }) {
       setStep('comment')
       return
     }
-    confirm()
+    if (onBook) askDetails('')
+    else confirm()
   }
 
-  function submitComment(comment) {
-    say({ from: 'user', text: comment })
-    confirm(' Thanks for your note.')
+  function submitComment(text) {
+    say({ from: 'user', text })
+    if (onBook) askDetails(text)
+    else confirm(' Thanks for your note.')
+  }
+
+  function askDetails(text) {
+    setComment(text)
+    say({ from: 'bot', text: DETAILS_QUESTION })
+    setStep('details')
+  }
+
+  async function submitDetails({ name, contact }) {
+    say({ from: 'user', text: `${name} · ${contact}` })
+    setStep('saving')
+    let result
+    try {
+      result = await onBook({ service, slots: chosen, name, contact, comments: comment || null })
+    } catch {
+      result = { ok: false, message: "Sorry, something went wrong and your time wasn't booked." }
+    }
+    say({
+      from: 'bot',
+      text: result.ok
+        ? `You're booked: ${booked}.${comment ? ' Thanks for your note.' : ''} The business will reach you at ${contact} if anything changes.`
+        : `${result.message} Tap Start over to choose another time.`,
+    })
+    setStep('done')
   }
 
   function confirm(extra = '') {
@@ -416,6 +498,8 @@ function CustomerPage({ business }) {
     setDropOffHours(null)
     setDropOff(null)
     setBooked('')
+    setChosen([])
+    setComment('')
   }
 
   // While picking pickup dates, grey out dates too soon after the earliest
@@ -529,7 +613,11 @@ function CustomerPage({ business }) {
 
         {step === 'comment' && <CommentForm onSubmit={submitComment} />}
 
-        {messages.length > 1 && (
+        {step === 'details' && <DetailsForm onSubmit={submitDetails} />}
+
+        {step === 'saving' && <p className="note">Booking…</p>}
+
+        {messages.length > 1 && step !== 'saving' && (
           <button type="button" className="button link" onClick={restart}>
             Start over
           </button>

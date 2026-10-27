@@ -1,6 +1,6 @@
 # RHBScheduler - An AI powered interactive scheduler
 
-[![CI](https://github.com/RonanJonsson-cloud/RyanHallBeddingService/actions/workflows/ci.yml/badge.svg)](https://github.com/RonanJonsson-cloud/RyanHallBeddingService/actions/workflows/ci.yml)
+[![CI](https://github.com/RonanJonsson-cloud/RyanHallBeddingService/actions/workflows/ci.yml/badge.svg?branch=Cloud-Database-potential-main)](https://github.com/RonanJonsson-cloud/RyanHallBeddingService/actions/workflows/ci.yml?query=branch%3ACloud-Database-potential-main)
 
 **Live site:** https://main.d2pas0nuhvquyl.amplifyapp.com/
 

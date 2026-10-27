@@ -193,7 +193,7 @@ const MAX_SEARCH_DAYS = 2 * 366
 
 // The business's open windows on one date, busy times removed and
 // overlapping ranges merged, as [start, end] timeline minutes.
-function openWindowsOn(date, businessHours) {
+export function openWindowsOn(date, businessHours) {
   const weekday = weekdayOf(date)
   const windows = businessHours
     .filter((range) => range.day === weekday)

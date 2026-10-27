@@ -1,7 +1,6 @@
-import { useState } from 'react'
-import BusinessPage from './BusinessPage.jsx'
+import { Suspense, lazy, useState } from 'react'
+import BusinessPage, { DEFAULT_SETTINGS } from './BusinessPage.jsx'
 import CustomerPage from './CustomerPage.jsx'
-import { DEFAULT_APPOINTMENT_MINUTES, DEFAULT_TURNAROUND_MINUTES } from './scheduling.js'
 import { LINK_PARAM, decodeBusiness } from './shareLink.js'
 
 // Opened from a customer link or QR code: show only that business's booking chat.
@@ -39,14 +38,7 @@ function CustomerView({ code }) {
 // The front page: the business owner sets up their hours and shares a link.
 function BusinessView() {
   // Kept in memory only: refreshing the page clears it.
-  const [settings, setSettings] = useState({
-    name: 'Ryan Hall Bedding Service',
-    offerAppointments: true,
-    appointmentMinutes: DEFAULT_APPOINTMENT_MINUTES,
-    offerHandoffs: true,
-    handoffsTogether: false,
-    turnaroundMinutes: DEFAULT_TURNAROUND_MINUTES,
-  })
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [businessHours, setBusinessHours] = useState([])
 
   return (
@@ -66,9 +58,25 @@ function BusinessView() {
   )
 }
 
+// Amplify writes this file when it deploys the cloud backend (saved
+// settings and real bookings). Without it, the app runs on its own, with
+// everything carried in the share link.
+const cloudOutputs = Object.values(
+  import.meta.glob('../amplify_outputs.json', { eager: true, import: 'default' }),
+)[0]
+const CloudApp = lazy(() => import('./CloudApp.jsx'))
+
 function App() {
   const code = new URLSearchParams(window.location.search).get(LINK_PARAM)
-  return code === null ? <BusinessView /> : <CustomerView code={code} />
+  if (code !== null) return <CustomerView code={code} />
+  if (cloudOutputs) {
+    return (
+      <Suspense fallback={null}>
+        <CloudApp outputs={cloudOutputs} />
+      </Suspense>
+    )
+  }
+  return <BusinessView />
 }
 
 export default App

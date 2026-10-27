@@ -35,7 +35,13 @@ function downloadPng(svg, fileName) {
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(markup)}`
 }
 
-function SharePanel({ business }) {
+// `link` replaces the link built from the settings (e.g. a saved business's
+// permanent link), and `note` the line under the buttons.
+function SharePanel({
+  business,
+  link: savedLink = null,
+  note = 'Changes make a new link and QR code.',
+}) {
   const { name, hours } = business
   const [copied, setCopied] = useState(false)
   const qrRef = useRef(null)
@@ -72,7 +78,7 @@ function SharePanel({ business }) {
     )
   }
 
-  const link = customerLink(business)
+  const link = savedLink ?? customerLink(business)
 
   async function handleCopy() {
     try {
@@ -121,7 +127,7 @@ function SharePanel({ business }) {
         </a>
       </div>
 
-      <p className="note">Changes make a new link and QR code.</p>
+      <p className="note">{note}</p>
     </section>
   )
 }
