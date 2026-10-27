@@ -39,7 +39,7 @@ function renderCustomerLink(business) {
 describe('Front page', () => {
   it('shows only the business setup', () => {
     render(<App />)
-    expect(screen.getByRole('heading', { name: 'RHBScheduler' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Kairo' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Your available hours' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Customer' })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Book a time' })).not.toBeInTheDocument()
@@ -257,7 +257,7 @@ describe('Share panel', () => {
 
 describe('Customer page (from a shared link)', () => {
   const business = {
-    name: 'Ryan Hall Bedding Service',
+    name: 'Kairo',
     appointmentMinutes: 30,
     hours: [
       { day: 'Monday', start: '09:00', end: '17:00', breaks: [] },
@@ -268,7 +268,7 @@ describe('Customer page (from a shared link)', () => {
   it('shows the business name and only the booking chat', () => {
     renderCustomerLink(business)
     expect(
-      screen.getByRole('heading', { name: 'Ryan Hall Bedding Service' }),
+      screen.getByRole('heading', { name: 'Kairo' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Book a time' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Business name')).not.toBeInTheDocument()
@@ -335,7 +335,7 @@ describe('Customer page (from a shared link)', () => {
 
   it("uses the business's appointment length", () => {
     renderCustomerLink({
-      name: 'Ryan Hall Bedding Service',
+      name: 'Kairo',
       appointmentMinutes: 60,
       hours: [{ day: 'Tuesday', start: '09:00', end: '12:00', breaks: [] }],
     })
@@ -414,7 +414,7 @@ describe('Customer page (from a shared link)', () => {
   })
 
   it('says so up front when the link has no hours', () => {
-    renderCustomerLink({ name: 'Ryan Hall Bedding Service', hours: [] })
+    renderCustomerLink({ name: 'Kairo', hours: [] })
     expect(
       screen.getByText("This business hasn't posted any hours yet. Please check back soon."),
     ).toBeInTheDocument()
@@ -431,7 +431,7 @@ describe('Customer page (from a shared link)', () => {
 describe('Customer page: appointments only', () => {
   it('skips the service question', () => {
     renderCustomerLink({
-      name: 'Ryan Hall Bedding Service',
+      name: 'Kairo',
       appointmentMinutes: 60,
       offerHandoffs: false,
       hours: [{ day: 'Monday', start: '09:00', end: '12:00', breaks: [] }],
@@ -453,7 +453,7 @@ describe('Customer page: appointments only', () => {
 
 describe('Customer page: drop-off and pickup together', () => {
   const business = {
-    name: 'Ryan Hall Bedding Service',
+    name: 'Kairo',
     offerHandoffs: true,
     handoffsTogether: true,
     turnaroundMinutes: 180,
@@ -581,7 +581,7 @@ describe('Customer page: no appointments', () => {
   const hours = [{ day: 'Monday', start: '09:00', end: '17:00', breaks: [] }]
 
   it('offers only pickup and drop-off', () => {
-    renderCustomerLink({ name: 'Ryan Hall Bedding Service', offerAppointments: false, hours })
+    renderCustomerLink({ name: 'Kairo', offerAppointments: false, hours })
     expect(screen.queryByRole('button', { name: 'Appointment' })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Pickup' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Drop-off' })).toBeInTheDocument()
@@ -589,7 +589,7 @@ describe('Customer page: no appointments', () => {
 
   it('skips the question when the paired booking is the only option', () => {
     renderCustomerLink({
-      name: 'Ryan Hall Bedding Service',
+      name: 'Kairo',
       offerAppointments: false,
       handoffsTogether: true,
       turnaroundMinutes: 180,
@@ -615,7 +615,7 @@ describe('Customer page: no appointments', () => {
 
   it('says so when nothing can be booked', () => {
     renderCustomerLink({
-      name: 'Ryan Hall Bedding Service',
+      name: 'Kairo',
       offerAppointments: false,
       offerHandoffs: false,
       hours,
@@ -628,7 +628,7 @@ describe('Customer page: no appointments', () => {
 
 describe('Customer page: final comments', () => {
   const business = {
-    name: 'Ryan Hall Bedding Service',
+    name: 'Kairo',
     hours: [{ day: 'Monday', start: '09:00', end: '17:00', breaks: [] }],
   }
 
@@ -683,7 +683,7 @@ describe('Customer page: final comments', () => {
 
 describe('Customer page: calendar', () => {
   const business = {
-    name: 'Ryan Hall Bedding Service',
+    name: 'Kairo',
     hours: [
       { day: 'Monday', start: '09:00', end: '17:00', breaks: [] },
       { day: 'Wednesday', start: '09:00', end: '17:00', breaks: [] },
@@ -758,7 +758,7 @@ describe('Customer page: calendar length for drop-off and pickup', () => {
 
   it('shows extra days to fit a long gap before the pickup', () => {
     renderCustomerLink({
-      name: 'Ryan Hall Bedding Service',
+      name: 'Kairo',
       offerAppointments: false,
       handoffsTogether: true,
       turnaroundMinutes: 14 * 1440,
@@ -780,7 +780,7 @@ describe('Customer page: calendar length for drop-off and pickup', () => {
   })
 
   it('keeps the usual 4 weeks for other bookings', () => {
-    renderCustomerLink({ name: 'Ryan Hall Bedding Service', hours })
+    renderCustomerLink({ name: 'Kairo', hours })
     click('Pickup')
     expect(screen.getByRole('button', { name: 'Monday, November 9' })).toBeEnabled()
     expect(screen.queryByRole('button', { name: /November 16/ })).not.toBeInTheDocument()
@@ -789,7 +789,7 @@ describe('Customer page: calendar length for drop-off and pickup', () => {
 
 describe('Customer page: later dates start with the first date\'s times', () => {
   const business = {
-    name: 'Ryan Hall Bedding Service',
+    name: 'Kairo',
     hours: [
       { day: 'Monday', start: '09:00', end: '17:00', breaks: [] },
       { day: 'Tuesday', start: '09:00', end: '17:00', breaks: [] },
@@ -928,7 +928,7 @@ describe('Contact details (backup: email and text)', () => {
 
 describe('Customer page: sending the request', () => {
   const business = {
-    name: 'Ryan Hall Bedding Service',
+    name: 'Kairo',
     contactEmail: 'owner@example.com',
     contactPhone: '+1 (555) 123-4567',
     hours: [{ day: 'Monday', start: '09:00', end: '17:00', breaks: [] }],
@@ -956,7 +956,7 @@ describe('Customer page: sending the request', () => {
     ).toBeInTheDocument()
 
     const body = [
-      'Booking request for Ryan Hall Bedding Service',
+      'Booking request for Kairo',
       'Pickup on Mon Oct 19 9:00 AM – 9:05 AM.',
       'Comments: Two beds.',
     ].join('\n')

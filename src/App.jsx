@@ -12,7 +12,7 @@ function CustomerView({ code }) {
     return (
       <div className="app">
         <header className="app-header">
-          <h1>RHBScheduler</h1>
+          <h1>Kairo</h1>
         </header>
         <main className="content">
           <p className="card" role="alert">
@@ -27,7 +27,7 @@ function CustomerView({ code }) {
     <div className="app">
       <header className="app-header">
         <h1>{business.name || 'Book a time'}</h1>
-        <p className="tagline">Book a time · RHBScheduler</p>
+        <p className="tagline">Book a time · Kairo</p>
       </header>
       <main className="content">
         <CustomerPage business={business} />
@@ -40,7 +40,7 @@ function CustomerView({ code }) {
 function BusinessView() {
   // Kept in memory only: refreshing the page clears it.
   const [settings, setSettings] = useState({
-    name: 'Ryan Hall Bedding Service',
+    name: 'Kairo',
     offerAppointments: true,
     appointmentMinutes: DEFAULT_APPOINTMENT_MINUTES,
     offerHandoffs: true,
@@ -54,7 +54,7 @@ function BusinessView() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>RHBScheduler</h1>
+        <h1>Kairo</h1>
       </header>
       <main className="content">
         <BusinessPage
