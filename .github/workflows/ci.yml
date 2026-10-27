@@ -20,8 +20,11 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
 
+      # Not `npm ci`: AWS's @aws-amplify/data-construct ships bundled
+      # packages whose versions don't match, which `npm ci` rejects. `npm install`
+      # still installs the versions in package-lock.json.
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       - name: Check backend types
         run: npx tsc -p amplify

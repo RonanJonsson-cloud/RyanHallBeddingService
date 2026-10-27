@@ -5,7 +5,10 @@ backend:
       commands:
         - nvm install 22
         - nvm use 22
-        - npm ci
+        # Not `npm ci`: AWS's @aws-amplify/data-construct ships bundled
+        # packages whose versions don't match, which `npm ci` rejects. `npm install`
+        # still installs the versions in package-lock.json.
+        - npm install --no-audit --no-fund
         # Builds the database, sign-in and booking function for this branch,
         # and writes amplify_outputs.json for the site to connect to.
         - npx ampx pipeline-deploy --branch $AWS_BRANCH --app-id $AWS_APP_ID
