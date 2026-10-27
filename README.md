@@ -1,4 +1,4 @@
-# RHBScheduler - An AI powered interactive scheduler
+# Kairo - An AI powered interactive scheduler
 
 [![CI](https://github.com/RonanJonsson-cloud/RyanHallBeddingService/actions/workflows/ci.yml/badge.svg)](https://github.com/RonanJonsson-cloud/RyanHallBeddingService/actions/workflows/ci.yml)
 
@@ -12,9 +12,9 @@
 
 ## What Does Laundry Have To Do With AI?
 
-RHBScheduler is an interactive scheduler that aids clients and entrepreneurs in picking mutually convenient drop-off and pick-up times. An AI assistant helps a client to choose drop-off and pick-up times by analyzing an input of their weekly schedule and comparing it to the entrepreneur's own schedule as well as previously booked times.
+Kairo is an interactive scheduler that aids clients and entrepreneurs in picking mutually convenient drop-off and pick-up times. An AI assistant helps a client to choose drop-off and pick-up times by analyzing an input of their weekly schedule and comparing it to the entrepreneur's own schedule as well as previously booked times.
 
 **Core Question:** How can AI aid new entrepreneurs in mundane and tedious tasks in order to effectively complement their business and streamline daily planning?
 
-**Answer:** This question can be answered in RHBScheduling's ability to seamlessly connect client to business across busy schedules.
+**Answer:** This question can be answered in Kairo's ability to seamlessly connect client to business across busy schedules.
 CUA Busch School AI Vibe Coding Contest, Fall 2026
