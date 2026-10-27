@@ -9,7 +9,7 @@ function click(name) {
 }
 
 const business = {
-  name: 'Ryan Hall Bedding Service',
+  name: 'Kairo',
   appointmentMinutes: 30,
   hours: [{ day: 'Monday', start: '09:00', end: '10:00', breaks: [] }],
 }

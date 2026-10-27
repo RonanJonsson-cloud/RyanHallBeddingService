@@ -9,7 +9,7 @@ import {
 import { PAIRED_SERVICE } from './scheduling.js'
 
 const business = {
-  name: 'Ryan Hall Bedding Service',
+  name: 'Kairo',
   offerAppointments: true,
   appointmentMinutes: 30,
   offerHandoffs: true,

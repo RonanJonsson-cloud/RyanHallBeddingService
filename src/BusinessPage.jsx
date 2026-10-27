@@ -18,7 +18,7 @@ import {
 let nextId = 1
 
 export const DEFAULT_SETTINGS = {
-  name: 'Ryan Hall Bedding Service',
+  name: 'Kairo',
   offerAppointments: true,
   appointmentMinutes: DEFAULT_APPOINTMENT_MINUTES,
   offerHandoffs: true,

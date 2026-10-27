@@ -303,7 +303,7 @@ function CustomerView({ db, id }) {
 
   if (!business) {
     return (
-      <Layout title="RHBScheduler">
+      <Layout title="Kairo">
         <p className="card" role="alert">
           This booking link isn't valid. Please ask the business for a new link or QR code.
         </p>
@@ -312,7 +312,7 @@ function CustomerView({ db, id }) {
   }
 
   return (
-    <Layout title={business.name || 'Book a time'} tagline="Book a time · RHBScheduler">
+    <Layout title={business.name || 'Book a time'} tagline="Book a time · Kairo">
       <CustomerPage business={business} taken={taken} onBook={book} />
     </Layout>
   )
@@ -323,7 +323,7 @@ function CloudApp({ outputs }) {
   const id = new URLSearchParams(window.location.search).get(BUSINESS_PARAM)
   if (id) return <CustomerView db={db} id={id} />
   return (
-    <Layout title="RHBScheduler">
+    <Layout title="Kairo">
       <Authenticator>
         {({ signOut, user }) => <OwnerPage db={db} user={user} signOut={signOut} />}
       </Authenticator>

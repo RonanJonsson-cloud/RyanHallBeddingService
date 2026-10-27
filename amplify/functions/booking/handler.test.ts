@@ -107,7 +107,7 @@ beforeEach(() => {
     id: 'biz',
     owner: OWNER,
     config: encodeBusiness({
-      name: 'Ryan Hall Bedding Service',
+      name: 'Kairo',
       appointmentMinutes: 30,
       offerHandoffs: true,
       handoffsTogether: true,
