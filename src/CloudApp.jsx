@@ -324,10 +324,6 @@ const SIGN_IN_COMPONENTS = {
     return (
       <div className="auth-caption">
         <h2>Business sign-in</h2>
-        <p className="hint">
-          For business owners to set hours and see bookings. Customers don't need an account:
-          they book through your link.
-        </p>
       </div>
     )
   },

@@ -86,7 +86,6 @@ describe('Cloud app: business owner', () => {
   it('labels the sign-in page as the business sign-in', async () => {
     render(<CloudApp outputs={{}} />)
     expect(screen.getByRole('heading', { name: 'Business sign-in' })).toBeInTheDocument()
-    expect(screen.getByText(/Customers don't need an account/)).toBeInTheDocument()
     expect(backend.formFields.signUp.password.label).toBe('Create password')
     expect(backend.formFields.signUp.confirm_password.label).toBe('Confirm password')
     expect(backend.formFields.signUp.password.placeholder).toBe('')
