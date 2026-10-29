@@ -490,3 +490,13 @@ a.button {
   line-height: 1;
   text-transform: uppercase;
 }
+
+/* Caption above the business sign-in form */
+.auth-caption {
+  padding: 1.5rem 1.5rem 0;
+  text-align: center;
+}
+
+.auth-caption h2 {
+  margin: 0 0 0.25rem;
+}

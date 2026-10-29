@@ -48,8 +48,16 @@ vi.mock('aws-amplify/data', () => ({
 }))
 
 vi.mock('@aws-amplify/ui-react', () => ({
-  Authenticator: ({ children }) =>
-    children({ signOut: vi.fn(), user: { signInDetails: { loginId: 'owner@example.com' } } }),
+  // Signed in straight away; also shows the caption and records the fields.
+  Authenticator: ({ children, components, formFields }) => {
+    backend.formFields = formFields
+    return (
+      <>
+        {components.Header()}
+        {children({ signOut: vi.fn(), user: { signInDetails: { loginId: 'owner@example.com' } } })}
+      </>
+    )
+  },
 }))
 
 const { default: CloudApp } = await import('./CloudApp.jsx')
@@ -75,6 +83,19 @@ afterEach(() => {
 })
 
 describe('Cloud app: business owner', () => {
+  it('labels the sign-in page as the business sign-in', async () => {
+    render(<CloudApp outputs={{}} />)
+    expect(screen.getByRole('heading', { name: 'Business sign-in' })).toBeInTheDocument()
+    expect(screen.getByText(/Customers don't need an account/)).toBeInTheDocument()
+    expect(backend.formFields.signUp.password.label).toBe('Create password')
+    expect(backend.formFields.signUp.confirm_password.label).toBe('Confirm password')
+    expect(backend.formFields.signUp.password.placeholder).toBe('')
+    expect(backend.formFields.signIn.password.placeholder).toBe('')
+    expect(backend.formFields.signIn.username.placeholder).toBe('')
+    expect(backend.formFields.signUp.email.placeholder).toBe('')
+    await screen.findByText(/Signed in as/)
+  })
+
   it('saves new settings and then shows a permanent link', async () => {
     render(<CloudApp outputs={{}} />)
     expect(await screen.findByText(/Signed in as owner@example.com/)).toBeInTheDocument()

@@ -318,13 +318,45 @@ function CustomerView({ db, id }) {
   )
 }
 
+// Shown above the sign-in and create-account forms.
+const SIGN_IN_COMPONENTS = {
+  Header() {
+    return (
+      <div className="auth-caption">
+        <h2>Business sign-in</h2>
+        <p className="hint">
+          For business owners to set hours and see bookings. Customers don't need an account:
+          they book through your link.
+        </p>
+      </div>
+    )
+  },
+}
+
+// Email and password boxes have labels but no placeholder text inside.
+// (Signing in with an email uses the "username" field.)
+const SIGN_IN_FIELDS = {
+  signIn: {
+    username: { placeholder: '' },
+    password: { placeholder: '' },
+  },
+  forgotPassword: {
+    username: { placeholder: '' },
+  },
+  signUp: {
+    email: { placeholder: '' },
+    password: { label: 'Create password', placeholder: '' },
+    confirm_password: { label: 'Confirm password', placeholder: '' },
+  },
+}
+
 function CloudApp({ outputs }) {
   const db = connect(outputs)
   const id = new URLSearchParams(window.location.search).get(BUSINESS_PARAM)
   if (id) return <CustomerView db={db} id={id} />
   return (
     <Layout title="Kairo">
-      <Authenticator>
+      <Authenticator components={SIGN_IN_COMPONENTS} formFields={SIGN_IN_FIELDS}>
         {({ signOut, user }) => <OwnerPage db={db} user={user} signOut={signOut} />}
       </Authenticator>
     </Layout>
