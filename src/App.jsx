@@ -60,10 +60,14 @@ function BusinessView() {
 
 // Amplify writes this file when it deploys the cloud backend (saved
 // settings and real bookings). Without it, the app runs on its own, with
-// everything carried in the share link.
-const cloudOutputs = Object.values(
-  import.meta.glob('../amplify_outputs.json', { eager: true, import: 'default' }),
-)[0]
+// everything carried in the share link. Tests always use the latter (the
+// cloud version has its own tests), whatever is on the machine.
+const cloudOutputs =
+  import.meta.env.MODE === 'test'
+    ? undefined
+    : Object.values(
+        import.meta.glob('../amplify_outputs.json', { eager: true, import: 'default' }),
+      )[0]
 const CloudApp = lazy(() => import('./CloudApp.jsx'))
 
 function App() {

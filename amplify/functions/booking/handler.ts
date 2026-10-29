@@ -29,8 +29,9 @@ type Taken = Slot & { bookingId: string }
 type Day = { date: string; slots: Taken[]; version: number | null }
 type Result = { ok: boolean; message: string }
 
+// What Amplify sends for a custom query or mutation.
 type Event = {
-  info: { fieldName: string }
+  fieldName: string
   arguments: Record<string, unknown>
   identity?: { sub?: string; username?: string } | null
 }
@@ -242,7 +243,7 @@ async function cancelBooking(id: string, identity: Event['identity']): Promise<R
 }
 
 export const handler = async (event: Event) => {
-  switch (event.info.fieldName) {
+  switch (event.fieldName) {
     case 'busyTimes':
       return busyTimes(String(event.arguments.businessId))
     case 'book':
@@ -250,7 +251,7 @@ export const handler = async (event: Event) => {
     case 'cancelBooking':
       return cancelBooking(String(event.arguments.id), event.identity)
     default:
-      throw new Error(`Unknown operation: ${event.info.fieldName}`)
+      throw new Error(`Unknown operation: ${event.fieldName}`)
   }
 }
 

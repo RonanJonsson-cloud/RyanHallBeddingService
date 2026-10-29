@@ -86,7 +86,7 @@ const { handler } = await import('./handler')
 const OWNER = 'owner-sub::owner-sub'
 
 function call(fieldName: string, args: Item, identity: Item | null = null) {
-  return handler({ info: { fieldName }, arguments: args, identity })
+  return handler({ fieldName, arguments: args, identity })
 }
 
 function bookAppointment(start: string, end: string, name = 'Sam') {
