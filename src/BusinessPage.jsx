@@ -4,6 +4,8 @@ import SharePanel from './SharePanel.jsx'
 import {
   APPOINTMENT_LENGTHS,
   DAYS,
+  DEFAULT_APPOINTMENT_MINUTES,
+  DEFAULT_TURNAROUND_MINUTES,
   HANDOFF_MINUTES,
   MAX_TURNAROUND_DAYS,
   formatDuration,
@@ -14,6 +16,24 @@ import {
 } from './scheduling.js'
 
 let nextId = 1
+
+export const DEFAULT_SETTINGS = {
+  name: 'Kairo',
+  offerAppointments: true,
+  appointmentMinutes: DEFAULT_APPOINTMENT_MINUTES,
+  offerHandoffs: true,
+  handoffsTogether: false,
+  turnaroundMinutes: DEFAULT_TURNAROUND_MINUTES,
+}
+
+// Saved hours come back without the ids the lists need.
+export function withIds(hours) {
+  return hours.map((range) => ({
+    ...range,
+    id: nextId++,
+    breaks: range.breaks.map((b) => ({ ...b, id: nextId++ })),
+  }))
+}
 
 // The business page calls busy blocks "unavailability".
 const UNAVAILABILITY = 'Unavailability'
@@ -213,7 +233,8 @@ function SettingsCard({ settings, onSettingsChange }) {
   )
 }
 
-function BusinessPage({ settings, onSettingsChange, hours, onChange }) {
+// `share` replaces the usual share panel at the bottom.
+function BusinessPage({ settings, onSettingsChange, hours, onChange, share = null }) {
   const [day, setDay] = useState('Monday')
   const [start, setStart] = useState('09:00')
   const [end, setEnd] = useState('17:00')
@@ -360,7 +381,7 @@ function BusinessPage({ settings, onSettingsChange, hours, onChange }) {
         )}
       </section>
 
-      <SharePanel business={{ ...settings, hours }} />
+      {share ?? <SharePanel business={{ ...settings, hours }} />}
     </>
   )
 }
