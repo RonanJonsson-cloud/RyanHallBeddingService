@@ -4,8 +4,6 @@
 
 **Live site:** https://main.d2pas0nuhvquyl.amplifyapp.com/
 
-**Backup (email/text requests):** https://backup-email-text.d2pas0nuhvquyl.amplifyapp.com/
-
 **GitHub:** https://github.com/RonanJonsson-cloud/RyanHallBeddingService
 
 **Stack:**  React · Vite · AWS Amplify
