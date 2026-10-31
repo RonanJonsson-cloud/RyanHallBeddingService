@@ -20,6 +20,8 @@
     "react-dom": "^19.1.0"
   },
   "devDependencies": {
+    "@anthropic-ai/bedrock-sdk": "0.35.0",
+    "@anthropic-ai/sdk": "0.135.0",
     "@aws-amplify/backend": "1.25.1",
     "@aws-amplify/backend-cli": "1.10.0",
     "@aws-sdk/client-dynamodb": "3.1149.0",

@@ -301,7 +301,7 @@ describe('Customer page (from a shared link)', () => {
     expect(
       screen.getByText('Anything else we should know?'),
     ).toBeInTheDocument()
-    click('Skip')
+    click('No')
     expect(screen.queryByLabelText('Your comments')).not.toBeInTheDocument()
     expect(
       screen.getByText(/You're all set: Appointment on Mon Oct 19 1:30 PM – 2:00 PM/),
@@ -511,7 +511,7 @@ describe('Customer page: drop-off and pickup together', () => {
     expect(screen.getByRole('button', { name: 'Mon Oct 19 4:45 PM – 4:50 PM' })).toBeInTheDocument()
 
     click('Mon Oct 19 3:45 PM – 3:50 PM')
-    click('Skip')
+    click('No')
     expect(
       screen.getByText(
         /You're all set: Drop-off on Mon Oct 19 11:45 AM – 11:50 AM and pickup on Mon Oct 19 3:45 PM – 3:50 PM/,
@@ -638,7 +638,7 @@ describe('Customer page: final comments', () => {
       screen.getByText('Anything else we should know?'),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Yes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Skip' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'No' })).toBeInTheDocument()
     expect(screen.queryByText(/You're all set/)).not.toBeInTheDocument()
   })
 
@@ -646,7 +646,7 @@ describe('Customer page: final comments', () => {
     bookPickup()
     click('Yes')
     expect(screen.getByText('What would you like the business to know?')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Skip' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'No' })).not.toBeInTheDocument()
 
     click('Send')
     expect(screen.getByRole('alert')).toHaveTextContent('Please type a comment')
@@ -666,7 +666,7 @@ describe('Customer page: final comments', () => {
 
   it('finishes straight away when the customer skips', () => {
     bookPickup()
-    click('Skip')
+    click('No')
     expect(screen.getByText(/You're all set: Pickup on Mon Oct 19 9:00 AM – 9:05 AM\. \(This/))
       .toBeInTheDocument()
   })

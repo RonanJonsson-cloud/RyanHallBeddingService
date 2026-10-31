@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import BreaksEditor from './BreaksEditor.jsx'
 import DatePicker from './DatePicker.jsx'
+import { MAX_DESCRIPTION_LENGTH, descriptionError } from './assistantRules.js'
 import { MAX_COMMENT_LENGTH, detailsError, withoutTaken } from './bookingRules.js'
 import {
   BOOKING_WINDOW_DAYS,
@@ -40,6 +41,18 @@ function slotLabel(slot) {
   return `${formatDate(slot.date)} ${formatRange(slot)}`
 }
 
+// "Mon Nov 2 9:00 AM – 12:00 PM, Tue Nov 3 ... and 6 more"
+function rangesText(ranges) {
+  const shown = ranges.slice(0, 4).map(slotLabel).join(', ')
+  const more = ranges.length - 4
+  return more > 0 ? `${shown} and ${more} more` : shown
+}
+
+const CANT_DESCRIBE =
+  "Sorry, I couldn't read that just now. Please pick your dates on the calendar instead."
+const NOTHING_FOUND =
+  "Sorry, I couldn't tell when you're free from that. Try something like 'weekday mornings', or pick dates on the calendar."
+
 function matchesText(matches, what) {
   return matches.length === 1
     ? `The earliest day that works is ${formatDate(matches[0].date)}. I found 1 time for your ${what}:`
@@ -53,16 +66,26 @@ const SERVICE_NAMES = {
   [PAIRED_SERVICE]: 'a drop-off and pickup',
 }
 
+// With the AI assistant, the dates step asks two questions, and the
+// customer answers either one.
+const USUAL_DAYS_QUESTION = 'What days are you usually free?'
+const DATES_QUESTION = "Or are there any specific dates you'd like to schedule?"
+const EITHER_QUESTION = 'Answer either question below.'
+
 // "To book a pickup, please select available dates."
-function datesPrompt(service) {
+function datesPrompt(service, canDescribe) {
   if (service === PAIRED_SERVICE) {
-    return 'To book a drop-off and pickup, first select available dates for your drop-off.'
+    return canDescribe
+      ? `To book a drop-off and pickup, first tell us about your drop-off. ${EITHER_QUESTION}`
+      : 'To book a drop-off and pickup, first select available dates for your drop-off.'
   }
-  return `To book ${SERVICE_NAMES[service]}, please select available dates.`
+  return canDescribe
+    ? `To book ${SERVICE_NAMES[service]}, ${EITHER_QUESTION.toLowerCase()}`
+    : `To book ${SERVICE_NAMES[service]}, please select available dates.`
 }
 
 // With only one service on offer, skip straight to asking for dates.
-function startingChat(services, hasHours) {
+function startingChat(services, hasHours, canDescribe) {
   if (!hasHours) {
     return {
       messages: [
@@ -85,7 +108,7 @@ function startingChat(services, hasHours) {
   if (services.length === 1) {
     const service = services[0]
     return {
-      messages: [{ from: 'bot', text: `Hi! ${datesPrompt(service)}` }],
+      messages: [{ from: 'bot', text: `Hi! ${datesPrompt(service, canDescribe)}` }],
       step: 'dates',
       service,
     }
@@ -271,8 +294,10 @@ function DetailsForm({ onSubmit }) {
 // suggested. With `onBook`, the chat saves the booking: it asks for the
 // customer's details, then calls onBook({ service, slots, name, contact,
 // comments }), which resolves to { ok, message }. Without it, the chat ends
-// as a demo.
-function CustomerPage({ business, taken = [], onBook = null }) {
+// as a demo. With `onDescribe`, customers can also say when they're free in
+// their own words: onDescribe(text, { firstDate, days }) resolves to
+// { ok, message, ranges }, the times they're free on those dates.
+function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }) {
   const {
     hours: businessHours,
     offerAppointments = true,
@@ -283,7 +308,8 @@ function CustomerPage({ business, taken = [], onBook = null }) {
   } = business
   const services = availableServices({ offerAppointments, offerHandoffs, handoffsTogether })
 
-  const [initial] = useState(() => startingChat(services, businessHours.length > 0))
+  const canDescribe = Boolean(onDescribe)
+  const [initial] = useState(() => startingChat(services, businessHours.length > 0, canDescribe))
   const [messages, setMessages] = useState(initial.messages)
   const [step, setStep] = useState(initial.step)
   const [service, setService] = useState(initial.service)
@@ -301,6 +327,9 @@ function CustomerPage({ business, taken = [], onBook = null }) {
   const [booked, setBooked] = useState('')
   const [chosen, setChosen] = useState([])
   const [comment, setComment] = useState('')
+  // What the customer typed instead of picking dates, for the AI assistant.
+  const [description, setDescription] = useState('')
+  const [descriptionProblem, setDescriptionProblem] = useState('')
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -315,7 +344,7 @@ function CustomerPage({ business, taken = [], onBook = null }) {
     setService(choice)
     say(
       { from: 'user', text: choice },
-      { from: 'bot', text: datesPrompt(choice) },
+      { from: 'bot', text: datesPrompt(choice, canDescribe) },
     )
     setStep('dates')
   }
@@ -324,6 +353,20 @@ function CustomerPage({ business, taken = [], onBook = null }) {
     setDates((current) =>
       current.includes(date) ? current.filter((d) => d !== date) : [...current, date],
     )
+  }
+
+  // Next on the dates step: the customer's own words if they typed any,
+  // otherwise the dates they picked.
+  function nextFromDates() {
+    if (!description.trim()) {
+      confirmDates()
+      return
+    }
+    const problem = descriptionError(description)
+    setDescriptionProblem(problem)
+    if (problem) return
+    setDescription('')
+    describeTimes(description.trim())
   }
 
   function confirmDates() {
@@ -348,7 +391,31 @@ function CustomerPage({ business, taken = [], onBook = null }) {
       say({ from: 'bot', text: `And on ${formatDate(dates[dateIndex + 1])}?` })
       return
     }
+    finishTimes(updated)
+  }
 
+  async function describeTimes(text) {
+    say({ from: 'user', text })
+    setStep('reading')
+    let result
+    try {
+      result = await onDescribe(text, { firstDate: calendarStart, days: calendarDays })
+    } catch {
+      result = { ok: false, message: CANT_DESCRIBE }
+    }
+    if (!result.ok || result.ranges.length === 0) {
+      say({ from: 'bot', text: result.ok ? NOTHING_FOUND : result.message })
+      setStep('dates')
+      return
+    }
+    setCustomerHours(result.ranges)
+    say({ from: 'bot', text: `Got it. You're free ${rangesText(result.ranges)}.` })
+    finishTimes(result.ranges)
+  }
+
+  // All of the customer's times are in (`updated`): suggest slots, or for a
+  // paired booking's drop-off, go on to ask about the pickup.
+  function finishTimes(updated) {
     // Paired booking: drop-off availability is done; now ask for the pickup's.
     if (service === PAIRED_SERVICE && !dropOffHours) {
       setDropOffHours(updated)
@@ -357,9 +424,11 @@ function CustomerPage({ business, taken = [], onBook = null }) {
       setDateIndex(0)
       say({
         from: 'bot',
-        text: `Now select available dates for your pickup. It must be at least ${formatDuration(
+        text: `${canDescribe ? 'Now your pickup.' : 'Now select available dates for your pickup.'} It must be at least ${formatDuration(
           turnaroundMinutes,
-        )} after your drop-off, counting only the days and hours we're open.`,
+        )} after your drop-off, counting only the days and hours we're open.${
+          canDescribe ? ` ${EITHER_QUESTION}` : ''
+        }`,
       })
       setStep('dates')
       return
@@ -438,7 +507,7 @@ function CustomerPage({ business, taken = [], onBook = null }) {
   }
 
   function answerComments(wantsToComment) {
-    say({ from: 'user', text: wantsToComment ? 'Yes' : 'Skip' })
+    say({ from: 'user', text: wantsToComment ? 'Yes' : 'No' })
     if (wantsToComment) {
       say({ from: 'bot', text: 'What would you like the business to know?' })
       setStep('comment')
@@ -487,7 +556,7 @@ function CustomerPage({ business, taken = [], onBook = null }) {
   }
 
   function restart() {
-    const fresh = startingChat(services, businessHours.length > 0)
+    const fresh = startingChat(services, businessHours.length > 0, canDescribe)
     setMessages(fresh.messages)
     setStep(fresh.step)
     setService(fresh.service)
@@ -500,6 +569,8 @@ function CustomerPage({ business, taken = [], onBook = null }) {
     setBooked('')
     setChosen([])
     setComment('')
+    setDescription('')
+    setDescriptionProblem('')
   }
 
   // While picking pickup dates, grey out dates too soon after the earliest
@@ -555,6 +626,25 @@ function CustomerPage({ business, taken = [], onBook = null }) {
 
         {step === 'dates' && (
           <>
+            {canDescribe && <p className="bubble bot question">{USUAL_DAYS_QUESTION}</p>}
+            {canDescribe && (
+              <input
+                type="text"
+                aria-label={USUAL_DAYS_QUESTION}
+                value={description}
+                maxLength={MAX_DESCRIPTION_LENGTH}
+                onChange={(e) => setDescription(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') nextFromDates()
+                }}
+              />
+            )}
+            {descriptionProblem && (
+              <p className="error" role="alert">
+                {descriptionProblem}
+              </p>
+            )}
+            {canDescribe && <p className="bubble bot question">{DATES_QUESTION}</p>}
             <DatePicker
               today={today}
               openDays={new Set(businessHours.map((range) => range.day))}
@@ -566,13 +656,15 @@ function CustomerPage({ business, taken = [], onBook = null }) {
             <button
               type="button"
               className="button primary"
-              disabled={dates.length === 0}
-              onClick={confirmDates}
+              disabled={dates.length === 0 && !description.trim()}
+              onClick={nextFromDates}
             >
               Next
             </button>
           </>
         )}
+
+        {step === 'reading' && <p className="note">Reading your times…</p>}
 
         {step === 'times' && (
           <TimeRangeForm
@@ -606,7 +698,7 @@ function CustomerPage({ business, taken = [], onBook = null }) {
               Yes
             </button>
             <button type="button" className="button" onClick={() => answerComments(false)}>
-              Skip
+              No
             </button>
           </div>
         )}
@@ -617,7 +709,7 @@ function CustomerPage({ business, taken = [], onBook = null }) {
 
         {step === 'saving' && <p className="note">Booking…</p>}
 
-        {messages.length > 1 && step !== 'saving' && (
+        {messages.length > 1 && step !== 'saving' && step !== 'reading' && (
           <button type="button" className="button link" onClick={restart}>
             Start over
           </button>

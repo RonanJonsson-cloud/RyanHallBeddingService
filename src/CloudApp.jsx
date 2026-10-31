@@ -6,7 +6,15 @@ import '@aws-amplify/ui-react/styles.css'
 import BusinessPage, { DEFAULT_SETTINGS, withIds } from './BusinessPage.jsx'
 import CustomerPage from './CustomerPage.jsx'
 import SharePanel from './SharePanel.jsx'
-import { PAIRED_SERVICE, formatDate, formatRange, timelineMinutes, turnaroundError } from './scheduling.js'
+import { cleanRanges, datesFrom } from './assistantRules.js'
+import {
+  PAIRED_SERVICE,
+  formatDate,
+  formatRange,
+  timelineMinutes,
+  toDateString,
+  turnaroundError,
+} from './scheduling.js'
 import { decodeBusiness, encodeBusiness } from './shareLink.js'
 
 // The app with its cloud backend: business owners sign in and save their
@@ -17,6 +25,8 @@ const BUSINESS_PARAM = 'id'
 // Customers don't sign in.
 const GUEST = { authMode: 'identityPool' }
 const BOOKING_FAILED = "Sorry, something went wrong and your time wasn't booked."
+const DESCRIBE_FAILED =
+  "Sorry, I couldn't read that just now. Please pick your dates on the calendar instead."
 
 let client = null
 function connect(outputs) {
@@ -293,6 +303,18 @@ function CustomerView({ db, id }) {
     return data
   }
 
+  // The AI assistant reads the customer's description of when they're free.
+  async function describe(text, { firstDate, days }) {
+    const { data, errors } = await db.queries.readAvailability(
+      { text, today: toDateString(new Date()), firstDate, days },
+      GUEST,
+    )
+    if (errors?.length || !data) return { ok: false, message: DESCRIBE_FAILED }
+    if (!data.ok) return { ok: false, message: data.message }
+    const allowed = datesFrom(firstDate, days).map(({ date }) => date)
+    return { ok: true, message: '', ranges: cleanRanges(readSlots(data.ranges), allowed) }
+  }
+
   if (business === undefined || taken === null) {
     return (
       <Layout title="Book a time">
@@ -313,7 +335,7 @@ function CustomerView({ db, id }) {
 
   return (
     <Layout title={business.name || 'Book a time'} tagline="Book a time · Kairo">
-      <CustomerPage business={business} taken={taken} onBook={book} />
+      <CustomerPage business={business} taken={taken} onBook={book} onDescribe={describe} />
     </Layout>
   )
 }
