@@ -1,4 +1,4 @@
-import { addDays, toMinutes, weekdayOf } from './scheduling.js'
+import { DAYS, addDays, toMinutes, weekdayOf } from './scheduling.js'
 
 // Shared by the customer page and the assistant function, which turns a
 // customer's own words ("weekday mornings, not Wednesday") into times.
@@ -33,6 +33,32 @@ export function descriptionError(text) {
     return `Please keep it under ${MAX_DESCRIPTION_LENGTH} characters.`
   }
   return ''
+}
+
+// The AI's answer, { times: [{ days, start, end }], skipDates }, as
+// { date, start, end } ranges on `dates` (from datesFrom). Each of `days`
+// is a weekday name, meaning every one of `dates` on that weekday, or an
+// exact date. Doing this here rather than in the AI means no date is missed.
+export function expandTimes({ times, skipDates }, dates) {
+  if (!Array.isArray(times)) return []
+  const skip = new Set(Array.isArray(skipDates) ? skipDates : [])
+  const ranges = []
+  for (const time of times) {
+    if (typeof time !== 'object' || time === null || !Array.isArray(time.days)) continue
+    for (const { date, weekday } of dates) {
+      if (skip.has(date)) continue
+      const matches = time.days.some(
+        (day) =>
+          day === date ||
+          (typeof day === 'string' && DAYS.includes(weekday) && day.toLowerCase() === weekday.toLowerCase()),
+      )
+      if (matches) ranges.push({ date, start: time.start, end: time.end })
+    }
+  }
+  return cleanRanges(
+    ranges,
+    dates.map(({ date }) => date),
+  )
 }
 
 // The usable { date, start, end, breaks } ranges in `ranges`, in time

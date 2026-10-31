@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_DESCRIPTION_LENGTH, cleanRanges, datesFrom, descriptionError, isDate } from './assistantRules.js'
+import {
+  MAX_DESCRIPTION_LENGTH,
+  cleanRanges,
+  datesFrom,
+  descriptionError,
+  expandTimes,
+  isDate,
+} from './assistantRules.js'
 
 describe('datesFrom', () => {
   it('lists each date with its weekday', () => {
@@ -26,6 +33,47 @@ describe('isDate', () => {
     expect(isDate('2026-13-01')).toBe(false)
     expect(isDate('Oct 31')).toBe(false)
     expect(isDate(20261031)).toBe(false)
+  })
+})
+
+describe('expandTimes', () => {
+  // Fri Oct 30 to Thu Nov 12.
+  const dates = datesFrom('2026-10-30', 14)
+
+  it('covers every date on a repeating weekday, plus exact dates', () => {
+    expect(
+      expandTimes(
+        {
+          times: [
+            { days: ['Friday'], start: '09:00', end: '11:00' },
+            { days: ['2026-11-03'], start: '13:00', end: '15:00' },
+          ],
+          skipDates: [],
+        },
+        dates,
+      ),
+    ).toEqual([
+      { date: '2026-10-30', start: '09:00', end: '11:00', breaks: [] },
+      { date: '2026-11-03', start: '13:00', end: '15:00', breaks: [] },
+      { date: '2026-11-06', start: '09:00', end: '11:00', breaks: [] },
+    ])
+  })
+
+  it('leaves out skipped dates and anything unusable', () => {
+    expect(
+      expandTimes(
+        {
+          times: [
+            { days: ['Friday', 'Funday', '2027-01-01'], start: '09:00', end: '11:00' },
+            { days: 'Friday', start: '09:00', end: '11:00' },
+            null,
+          ],
+          skipDates: ['2026-10-30'],
+        },
+        dates,
+      ),
+    ).toEqual([{ date: '2026-11-06', start: '09:00', end: '11:00', breaks: [] }])
+    expect(expandTimes({ times: 'all week', skipDates: null }, dates)).toEqual([])
   })
 })
 

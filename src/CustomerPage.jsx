@@ -66,16 +66,26 @@ const SERVICE_NAMES = {
   [PAIRED_SERVICE]: 'a drop-off and pickup',
 }
 
+// With the AI assistant, the dates step asks two questions, and the
+// customer answers either one.
+const USUAL_DAYS_QUESTION = 'What days are you usually free?'
+const DATES_QUESTION = "Are there any specific dates you'd like to schedule?"
+const EITHER_QUESTION = 'Answer either question below.'
+
 // "To book a pickup, please select available dates."
-function datesPrompt(service) {
+function datesPrompt(service, canDescribe) {
   if (service === PAIRED_SERVICE) {
-    return 'To book a drop-off and pickup, first select available dates for your drop-off.'
+    return canDescribe
+      ? `To book a drop-off and pickup, first tell us about your drop-off. ${EITHER_QUESTION}`
+      : 'To book a drop-off and pickup, first select available dates for your drop-off.'
   }
-  return `To book ${SERVICE_NAMES[service]}, please select available dates.`
+  return canDescribe
+    ? `To book ${SERVICE_NAMES[service]}, ${EITHER_QUESTION.toLowerCase()}`
+    : `To book ${SERVICE_NAMES[service]}, please select available dates.`
 }
 
 // With only one service on offer, skip straight to asking for dates.
-function startingChat(services, hasHours) {
+function startingChat(services, hasHours, canDescribe) {
   if (!hasHours) {
     return {
       messages: [
@@ -98,7 +108,7 @@ function startingChat(services, hasHours) {
   if (services.length === 1) {
     const service = services[0]
     return {
-      messages: [{ from: 'bot', text: `Hi! ${datesPrompt(service)}` }],
+      messages: [{ from: 'bot', text: `Hi! ${datesPrompt(service, canDescribe)}` }],
       step: 'dates',
       service,
     }
@@ -237,45 +247,6 @@ function CommentForm({ onSubmit }) {
   )
 }
 
-// The customer's own words instead of the calendar, read by the AI assistant.
-function DescribeForm({ onSubmit }) {
-  const [text, setText] = useState('')
-  const [error, setError] = useState('')
-
-  function handleSubmit(event) {
-    event.preventDefault()
-    const message = descriptionError(text)
-    if (message) {
-      setError(message)
-      return
-    }
-    onSubmit(text.trim())
-  }
-
-  return (
-    <form className="card" onSubmit={handleSubmit} noValidate aria-label="Describe when you're free">
-      <label className="field">
-        Or tell us when you're free
-        <input
-          type="text"
-          value={text}
-          maxLength={MAX_DESCRIPTION_LENGTH}
-          onChange={(e) => setText(e.target.value)}
-        />
-      </label>
-      <p className="hint">For example: weekday mornings, but not Wednesday</p>
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      <button type="submit" className="button primary">
-        Find times
-      </button>
-    </form>
-  )
-}
-
 function DetailsForm({ onSubmit }) {
   const [name, setName] = useState('')
   const [contact, setContact] = useState('')
@@ -337,7 +308,8 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
   } = business
   const services = availableServices({ offerAppointments, offerHandoffs, handoffsTogether })
 
-  const [initial] = useState(() => startingChat(services, businessHours.length > 0))
+  const canDescribe = Boolean(onDescribe)
+  const [initial] = useState(() => startingChat(services, businessHours.length > 0, canDescribe))
   const [messages, setMessages] = useState(initial.messages)
   const [step, setStep] = useState(initial.step)
   const [service, setService] = useState(initial.service)
@@ -355,6 +327,9 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
   const [booked, setBooked] = useState('')
   const [chosen, setChosen] = useState([])
   const [comment, setComment] = useState('')
+  // What the customer typed instead of picking dates, for the AI assistant.
+  const [description, setDescription] = useState('')
+  const [descriptionProblem, setDescriptionProblem] = useState('')
   const bottomRef = useRef(null)
 
   useEffect(() => {
@@ -369,7 +344,7 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
     setService(choice)
     say(
       { from: 'user', text: choice },
-      { from: 'bot', text: datesPrompt(choice) },
+      { from: 'bot', text: datesPrompt(choice, canDescribe) },
     )
     setStep('dates')
   }
@@ -378,6 +353,20 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
     setDates((current) =>
       current.includes(date) ? current.filter((d) => d !== date) : [...current, date],
     )
+  }
+
+  // Next on the dates step: the customer's own words if they typed any,
+  // otherwise the dates they picked.
+  function nextFromDates() {
+    if (!description.trim()) {
+      confirmDates()
+      return
+    }
+    const problem = descriptionError(description)
+    setDescriptionProblem(problem)
+    if (problem) return
+    setDescription('')
+    describeTimes(description.trim())
   }
 
   function confirmDates() {
@@ -435,9 +424,11 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
       setDateIndex(0)
       say({
         from: 'bot',
-        text: `Now select available dates for your pickup. It must be at least ${formatDuration(
+        text: `${canDescribe ? 'Now your pickup.' : 'Now select available dates for your pickup.'} It must be at least ${formatDuration(
           turnaroundMinutes,
-        )} after your drop-off, counting only the days and hours we're open.`,
+        )} after your drop-off, counting only the days and hours we're open.${
+          canDescribe ? ` ${EITHER_QUESTION}` : ''
+        }`,
       })
       setStep('dates')
       return
@@ -565,7 +556,7 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
   }
 
   function restart() {
-    const fresh = startingChat(services, businessHours.length > 0)
+    const fresh = startingChat(services, businessHours.length > 0, canDescribe)
     setMessages(fresh.messages)
     setStep(fresh.step)
     setService(fresh.service)
@@ -578,6 +569,8 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
     setBooked('')
     setChosen([])
     setComment('')
+    setDescription('')
+    setDescriptionProblem('')
   }
 
   // While picking pickup dates, grey out dates too soon after the earliest
@@ -633,6 +626,25 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
 
         {step === 'dates' && (
           <>
+            {canDescribe && <p className="bubble bot question">{USUAL_DAYS_QUESTION}</p>}
+            {canDescribe && (
+              <input
+                type="text"
+                aria-label={USUAL_DAYS_QUESTION}
+                value={description}
+                maxLength={MAX_DESCRIPTION_LENGTH}
+                onChange={(e) => setDescription(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') nextFromDates()
+                }}
+              />
+            )}
+            {descriptionProblem && (
+              <p className="error" role="alert">
+                {descriptionProblem}
+              </p>
+            )}
+            {canDescribe && <p className="bubble bot question">{DATES_QUESTION}</p>}
             <DatePicker
               today={today}
               openDays={new Set(businessHours.map((range) => range.day))}
@@ -644,12 +656,11 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
             <button
               type="button"
               className="button primary"
-              disabled={dates.length === 0}
-              onClick={confirmDates}
+              disabled={dates.length === 0 && !description.trim()}
+              onClick={nextFromDates}
             >
               Next
             </button>
-            {onDescribe && <DescribeForm key={messages.length} onSubmit={describeTimes} />}
           </>
         )}
 

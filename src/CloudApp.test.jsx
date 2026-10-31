@@ -187,8 +187,8 @@ describe('Cloud app: customer', () => {
 
     await screen.findByRole('button', { name: 'Appointment' })
     click('Appointment')
-    fireEvent.change(screen.getByLabelText("Or tell us when you're free"), { target: { value: 'Monday morning' } })
-    click('Find times')
+    fireEvent.change(screen.getByLabelText('What days are you usually free?'), { target: { value: 'Monday morning' } })
+    click('Next')
 
     expect(await screen.findByText("Got it. You're free Mon Oct 19 9:00 AM – 12:00 PM.")).toBeInTheDocument()
     const [, args, options] = backend.calls.find(([name]) => name === 'readAvailability')
@@ -204,8 +204,8 @@ describe('Cloud app: customer', () => {
 
     await screen.findByRole('button', { name: 'Appointment' })
     click('Appointment')
-    fireEvent.change(screen.getByLabelText("Or tell us when you're free"), { target: { value: 'mornings' } })
-    click('Find times')
+    fireEvent.change(screen.getByLabelText('What days are you usually free?'), { target: { value: 'mornings' } })
+    click('Next')
     expect(await screen.findByText('Busy today.')).toBeInTheDocument()
   })
 

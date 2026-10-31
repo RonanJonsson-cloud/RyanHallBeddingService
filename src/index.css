@@ -308,6 +308,11 @@ textarea {
   border-bottom-right-radius: 4px;
 }
 
+/* A question asked right above its answer box, like a chat message. */
+.question {
+  margin: 0;
+}
+
 .chat-controls {
   display: flex;
   flex-direction: column;

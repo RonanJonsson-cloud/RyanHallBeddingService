@@ -111,14 +111,43 @@ describe('Customer page: describing free times', () => {
   function describeTimes(onDescribe, text = 'Monday mornings') {
     render(<CustomerPage business={business} onDescribe={onDescribe} />)
     click('Appointment')
-    fireEvent.change(screen.getByLabelText("Or tell us when you're free"), { target: { value: text } })
-    click('Find times')
+    fireEvent.change(screen.getByLabelText('What days are you usually free?'), { target: { value: text } })
+    click('Next')
   }
 
   it('only offers the box when an assistant is available', () => {
     render(<CustomerPage business={business} />)
     click('Appointment')
-    expect(screen.queryByLabelText("Or tell us when you're free")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('What days are you usually free?')).not.toBeInTheDocument()
+    expect(screen.getByText('To book an appointment, please select available dates.')).toBeInTheDocument()
+  })
+
+  it('asks about usual free days, then specific dates, with one Next button', () => {
+    render(<CustomerPage business={business} onDescribe={vi.fn()} />)
+    click('Appointment')
+    expect(screen.getByText('To book an appointment, answer either question below.')).toBeInTheDocument()
+    const usual = screen.getByText('What days are you usually free?')
+    const specific = screen.getByText("Are there any specific dates you'd like to schedule?")
+    // Usual days come first, then the calendar.
+    expect(usual.compareDocumentPosition(specific) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(
+      specific.compareDocumentPosition(screen.getByRole('group', { name: 'Dates' })) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Next' })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText('What days are you usually free?'), { target: { value: 'mornings' } })
+    expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled()
+  })
+
+  it('still uses the picked dates when nothing is typed', () => {
+    const onDescribe = vi.fn()
+    render(<CustomerPage business={business} onDescribe={onDescribe} />)
+    click('Appointment')
+    click('Monday, October 19')
+    click('Next')
+    expect(screen.getByText('What times are you free on Mon Oct 19?')).toBeInTheDocument()
+    expect(onDescribe).not.toHaveBeenCalled()
   })
 
   it("suggests times from the customer's own words", async () => {
@@ -149,8 +178,8 @@ describe('Customer page: describing free times', () => {
 
   it('checks the description before sending it', () => {
     const onDescribe = vi.fn()
-    describeTimes(onDescribe, '   ')
-    expect(screen.getByRole('alert')).toHaveTextContent('Please tell us when you are free.')
+    describeTimes(onDescribe, 'x'.repeat(301))
+    expect(screen.getByRole('alert')).toHaveTextContent('Please keep it under 300 characters.')
     expect(onDescribe).not.toHaveBeenCalled()
   })
 
@@ -167,11 +196,11 @@ describe('Customer page: describing free times', () => {
       .mockResolvedValueOnce({ ok: true, message: '', ranges: [{ date: '2026-10-19', start: '09:00', end: '10:00', breaks: [] }] })
       .mockResolvedValueOnce({ ok: true, message: '', ranges: [{ date: '2026-10-19', start: '15:00', end: '16:00', breaks: [] }] })
     render(<CustomerPage business={paired} onDescribe={onDescribe} />)
-    fireEvent.change(screen.getByLabelText("Or tell us when you're free"), { target: { value: 'Monday 9 to 10' } })
-    click('Find times')
-    expect(await screen.findByText(/Now select available dates for your pickup/)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText("Or tell us when you're free"), { target: { value: 'Monday 3 to 4' } })
-    click('Find times')
+    fireEvent.change(screen.getByLabelText('What days are you usually free?'), { target: { value: 'Monday 9 to 10' } })
+    click('Next')
+    expect(await screen.findByText(/Now your pickup. It must be at least 1 hour after your drop-off.*Answer either question below./)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('What days are you usually free?'), { target: { value: 'Monday 3 to 4' } })
+    click('Next')
     expect(await screen.findByText(/First, your drop-off/)).toBeInTheDocument()
     click('Mon Oct 19 9:00 AM – 9:05 AM')
     expect(screen.getByRole('button', { name: 'Mon Oct 19 3:00 PM – 3:05 PM' })).toBeInTheDocument()
