@@ -23,13 +23,23 @@ for (const [variable, model] of Object.entries(tableNames)) {
 }
 
 // The assistant function asks Claude on Amazon Bedrock to read customers'
-// descriptions of when they're free. Calling Claude is the only AI access
-// it gets, and it keeps a daily count of its calls so the cost stays small.
+// descriptions of when they're free. It may call only that one model
+// (through Bedrock's global routing, which can run it in any region), and
+// keeps a daily count of its calls so the cost stays small.
 const assistantLambda = backend.assistant.resources.lambda
+const assistantStack = Stack.of(assistantLambda)
+const CLAUDE_MODEL = 'anthropic.claude-haiku-4-5-20251001-v1:0'
 assistantLambda.addToRolePolicy(
-  new PolicyStatement({ actions: ['bedrock-mantle:CreateInference'], resources: ['*'] }),
+  new PolicyStatement({
+    actions: ['bedrock:InvokeModel'],
+    resources: [
+      `arn:aws:bedrock:${assistantStack.region}:${assistantStack.account}:inference-profile/global.${CLAUDE_MODEL}`,
+      `arn:aws:bedrock:*::foundation-model/${CLAUDE_MODEL}`,
+      `arn:aws:bedrock:::foundation-model/${CLAUDE_MODEL}`,
+    ],
+  }),
 )
-const usage = new Table(Stack.of(assistantLambda), 'AssistantUsage', {
+const usage = new Table(assistantStack, 'AssistantUsage', {
   partitionKey: { name: 'key', type: AttributeType.STRING },
   billingMode: BillingMode.PAY_PER_REQUEST,
   timeToLiveAttribute: 'expires',

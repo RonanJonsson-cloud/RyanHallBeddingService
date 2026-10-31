@@ -35,7 +35,7 @@ vi.mock('@aws-sdk/lib-dynamodb', async (importOriginal) => {
 })
 
 vi.mock('@anthropic-ai/bedrock-sdk', () => ({
-  AnthropicBedrockMantle: class {
+  default: class {
     messages = claude
   },
 }))
@@ -52,10 +52,10 @@ function ask(text: string, args: Item = {}, identity: Item | null = GUEST) {
   })
 }
 
-function answer(ranges: unknown, stop_reason = 'end_turn') {
+function answer(ranges: unknown) {
   claude.create.mockResolvedValue({
-    stop_reason,
-    content: [{ type: 'text', text: JSON.stringify({ ranges }) }],
+    stop_reason: 'tool_use',
+    content: [{ type: 'tool_use', id: 'tool-1', name: 'save_times', input: { ranges } }],
   })
 }
 
@@ -81,7 +81,8 @@ describe('assistant function', () => {
     })
 
     const request = claude.create.mock.calls[0][0]
-    expect(request.model).toBe('anthropic.claude-haiku-4-5')
+    expect(request.model).toBe('global.anthropic.claude-haiku-4-5-20251001-v1:0')
+    expect(request.tool_choice).toEqual({ type: 'tool', name: 'save_times' })
     expect(request.messages).toEqual([{ role: 'user', content: 'Monday morning' }])
     expect(request.system).toContain('2026-11-02 (Monday)')
     expect(request.system).toContain('2026-11-05 (Thursday)')
@@ -126,7 +127,7 @@ describe('assistant function', () => {
       message: expect.stringMatching(/pick your dates on the calendar/),
       ranges: '[]',
     })
-    answer([], 'refusal')
+    claude.create.mockResolvedValue({ stop_reason: 'refusal', content: [] })
     expect(await ask('mornings')).toMatchObject({ ok: false })
   })
 })

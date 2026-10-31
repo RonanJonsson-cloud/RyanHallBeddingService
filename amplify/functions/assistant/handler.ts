@@ -1,4 +1,4 @@
-import { AnthropicBedrockMantle } from '@anthropic-ai/bedrock-sdk'
+import AnthropicBedrock from '@anthropic-ai/bedrock-sdk'
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb'
 import { DynamoDBDocumentClient, UpdateCommand } from '@aws-sdk/lib-dynamodb'
 import {
@@ -19,13 +19,14 @@ import { addDays } from '../../../src/scheduling.js'
 // Every call costs a little, so each customer gets a few a day and all
 // customers together get a fixed number a day (see USAGE_TABLE).
 
-// Small and fast, which is plenty for reading a sentence or two. (Claude
-// Haiku 5.5 is cheaper, but isn't open to this AWS account.)
-const MODEL = 'anthropic.claude-haiku-4-5'
+// Small and fast, which is plenty for reading a sentence or two, through
+// Bedrock's global routing (no extra charge). Claude Haiku 5.5 and the newer
+// Bedrock endpoint aren't open to this AWS account. Must match backend.ts.
+export const MODEL = 'global.anthropic.claude-haiku-4-5-20251001-v1:0'
 const PER_CUSTOMER_PER_DAY = 10
 const ALL_CUSTOMERS_PER_DAY = 30
 
-const claude = new AnthropicBedrockMantle()
+const claude = new AnthropicBedrock()
 const db = DynamoDBDocumentClient.from(new DynamoDBClient({}))
 const USAGE_TABLE = process.env.USAGE_TABLE
 
@@ -47,10 +48,12 @@ function fail(message: string): Result {
   return { ok: false, message, ranges: '[]' }
 }
 
-const RANGES_FORMAT = {
-  type: 'json_schema' as const,
-  schema: {
-    type: 'object',
+// Claude answers by "calling" this tool, so its answer always has this shape.
+const SAVE_TIMES = {
+  name: 'save_times',
+  description: 'Save the time ranges when the customer is free.',
+  input_schema: {
+    type: 'object' as const,
     properties: {
       ranges: {
         type: 'array',
@@ -147,17 +150,18 @@ async function readAvailability(args: Record<string, unknown>, identity: Event['
     const response = await claude.messages.create({
       model: MODEL,
       max_tokens: 4000,
-      output_config: { format: RANGES_FORMAT },
       system: instructions(today, dates),
+      tools: [SAVE_TIMES],
+      tool_choice: { type: 'tool', name: SAVE_TIMES.name },
       messages: [{ role: 'user', content: text }],
     })
-    const block = response.content.find((item) => item.type === 'text')
-    if (response.stop_reason !== 'end_turn' || !block || block.type !== 'text') {
+    const block = response.content.find((item) => item.type === 'tool_use')
+    if (!block || block.type !== 'tool_use') {
       console.error('Unexpected response', response.stop_reason)
       return fail(UNAVAILABLE)
     }
     const ranges = cleanRanges(
-      JSON.parse(block.text).ranges,
+      (block.input as { ranges?: unknown }).ranges,
       dates.map(({ date }) => date),
     )
     return { ok: true, message: '', ranges: JSON.stringify(ranges) }
