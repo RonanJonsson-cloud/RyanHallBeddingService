@@ -32,7 +32,13 @@ vi.mock('aws-amplify/data', () => ({
       },
       Booking: { list: async () => ({ data: backend.bookings, nextToken: null }) },
     },
-    queries: { busyTimes: async () => ({ data: backend.taken }) },
+    queries: {
+      busyTimes: async () => ({ data: backend.taken }),
+      readAvailability: async (args, options) => {
+        backend.calls.push(['readAvailability', args, options])
+        return { data: backend.availability }
+      },
+    },
     mutations: {
       book: async (args, options) => {
         backend.calls.push(['book', args, options])
@@ -164,6 +170,43 @@ describe('Cloud app: customer', () => {
     expect(args).toMatchObject({ businessId: 'biz', service: 'Appointment', name: 'Sam' })
     expect(JSON.parse(args.slots)).toEqual([{ date: '2026-10-19', start: '09:30', end: '10:00' }])
     expect(options).toEqual({ authMode: 'identityPool' })
+  })
+
+  it("asks the assistant about the customer's own words, keeping only usable times", async () => {
+    backend.businesses = [{ id: 'biz', config: encodeBusiness({ name: 'Saved Name', hours }) }]
+    backend.availability = {
+      ok: true,
+      message: '',
+      ranges: JSON.stringify([
+        { date: '2026-10-19', start: '09:00', end: '12:00', breaks: [] },
+        { date: '2027-01-04', start: '09:00', end: '12:00', breaks: [] },
+      ]),
+    }
+    window.history.replaceState({}, '', '/?id=biz')
+    render(<CloudApp outputs={{}} />)
+
+    await screen.findByRole('button', { name: 'Appointment' })
+    click('Appointment')
+    fireEvent.change(screen.getByLabelText("Or tell me when you're free"), { target: { value: 'Monday morning' } })
+    click('Find times')
+
+    expect(await screen.findByText("Got it. You're free Mon Oct 19 9:00 AM – 12:00 PM.")).toBeInTheDocument()
+    const [, args, options] = backend.calls.find(([name]) => name === 'readAvailability')
+    expect(args).toEqual({ text: 'Monday morning', today: '2026-10-19', firstDate: '2026-10-19', days: 28 })
+    expect(options).toEqual({ authMode: 'identityPool' })
+  })
+
+  it("passes on the assistant's message when it can't help", async () => {
+    backend.businesses = [{ id: 'biz', config: encodeBusiness({ name: 'Saved Name', hours }) }]
+    backend.availability = { ok: false, message: 'Busy today.', ranges: '[]' }
+    window.history.replaceState({}, '', '/?id=biz')
+    render(<CloudApp outputs={{}} />)
+
+    await screen.findByRole('button', { name: 'Appointment' })
+    click('Appointment')
+    fireEvent.change(screen.getByLabelText("Or tell me when you're free"), { target: { value: 'mornings' } })
+    click('Find times')
+    expect(await screen.findByText('Busy today.')).toBeInTheDocument()
   })
 
   it('explains when the link matches no business', async () => {

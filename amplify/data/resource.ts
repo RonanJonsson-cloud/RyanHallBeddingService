@@ -1,4 +1,5 @@
 import { a, defineData, type ClientSchema } from '@aws-amplify/backend'
+import { assistant } from '../functions/assistant/resource'
 import { booking } from '../functions/booking/resource'
 
 // Who can do what:
@@ -68,6 +69,27 @@ const schema = a.schema({
     ok: a.boolean().required(),
     message: a.string().required(),
   }),
+
+  AvailabilityResult: a.customType({
+    ok: a.boolean().required(),
+    message: a.string().required(),
+    // JSON list of { date, start, end, breaks }.
+    ranges: a.string().required(),
+  }),
+
+  // A customer's own words ("weekday mornings") read into time ranges on
+  // the `days` dates from `firstDate`. `today` is the customer's date.
+  readAvailability: a
+    .query()
+    .arguments({
+      text: a.string().required(),
+      today: a.string().required(),
+      firstDate: a.string().required(),
+      days: a.integer().required(),
+    })
+    .returns(a.ref('AvailabilityResult'))
+    .authorization((allow) => customers(allow))
+    .handler(a.handler.function(assistant)),
 
   busyTimes: a
     .query()

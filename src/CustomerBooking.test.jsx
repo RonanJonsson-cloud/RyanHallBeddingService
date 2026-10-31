@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import CustomerPage from './CustomerPage.jsx'
 
@@ -99,5 +99,81 @@ describe('Customer page: saved bookings', () => {
     click('Skip')
     fillDetails('Sam', 'sam@example.com')
     expect(await screen.findByText(/something went wrong and your time wasn't booked/)).toBeInTheDocument()
+  })
+})
+
+describe('Customer page: describing free times', () => {
+  const ranges = [
+    { date: '2026-10-19', start: '09:30', end: '12:00', breaks: [] },
+    { date: '2026-10-26', start: '08:00', end: '12:00', breaks: [] },
+  ]
+
+  function describeTimes(onDescribe, text = 'Monday mornings') {
+    render(<CustomerPage business={business} onDescribe={onDescribe} />)
+    click('Appointment')
+    fireEvent.change(screen.getByLabelText("Or tell me when you're free"), { target: { value: text } })
+    click('Find times')
+  }
+
+  it('only offers the box when an assistant is available', () => {
+    render(<CustomerPage business={business} />)
+    click('Appointment')
+    expect(screen.queryByLabelText("Or tell me when you're free")).not.toBeInTheDocument()
+  })
+
+  it("suggests times from the customer's own words", async () => {
+    const onDescribe = vi.fn().mockResolvedValue({ ok: true, message: '', ranges })
+    describeTimes(onDescribe)
+    expect(
+      await screen.findByText("Got it. You're free Mon Oct 19 9:30 AM – 12:00 PM, Mon Oct 26 8:00 AM – 12:00 PM."),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 9:30 AM – 10:00 AM' })).toBeInTheDocument()
+    expect(onDescribe).toHaveBeenCalledWith('Monday mornings', { firstDate: '2026-10-19', days: 28 })
+  })
+
+  it('goes back to the calendar when nothing could be read', async () => {
+    describeTimes(vi.fn().mockResolvedValue({ ok: true, message: '', ranges: [] }), 'hello')
+    expect(await screen.findByText(/couldn't tell when you're free/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+  })
+
+  it("passes on the assistant's message, or explains when it couldn't be reached", async () => {
+    describeTimes(vi.fn().mockResolvedValue({ ok: false, message: 'Too many questions today.', ranges: [] }))
+    expect(await screen.findByText('Too many questions today.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toBeInTheDocument()
+
+    cleanup()
+    describeTimes(vi.fn().mockRejectedValue(new Error('offline')))
+    expect(await screen.findByText(/couldn't read that just now/)).toBeInTheDocument()
+  })
+
+  it('checks the description before sending it', () => {
+    const onDescribe = vi.fn()
+    describeTimes(onDescribe, '   ')
+    expect(screen.getByRole('alert')).toHaveTextContent('Please tell me when you are free.')
+    expect(onDescribe).not.toHaveBeenCalled()
+  })
+
+  it('works for both halves of a drop-off and pickup', async () => {
+    const paired = {
+      ...business,
+      offerAppointments: false,
+      handoffsTogether: true,
+      turnaroundMinutes: 60,
+      hours: [{ day: 'Monday', start: '09:00', end: '17:00', breaks: [] }],
+    }
+    const onDescribe = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, message: '', ranges: [{ date: '2026-10-19', start: '09:00', end: '10:00', breaks: [] }] })
+      .mockResolvedValueOnce({ ok: true, message: '', ranges: [{ date: '2026-10-19', start: '15:00', end: '16:00', breaks: [] }] })
+    render(<CustomerPage business={paired} onDescribe={onDescribe} />)
+    fireEvent.change(screen.getByLabelText("Or tell me when you're free"), { target: { value: 'Monday 9 to 10' } })
+    click('Find times')
+    expect(await screen.findByText(/Now select available dates for your pickup/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText("Or tell me when you're free"), { target: { value: 'Monday 3 to 4' } })
+    click('Find times')
+    expect(await screen.findByText(/First, your drop-off/)).toBeInTheDocument()
+    click('Mon Oct 19 9:00 AM – 9:05 AM')
+    expect(screen.getByRole('button', { name: 'Mon Oct 19 3:00 PM – 3:05 PM' })).toBeInTheDocument()
   })
 })

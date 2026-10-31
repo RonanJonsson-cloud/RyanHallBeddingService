@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import BreaksEditor from './BreaksEditor.jsx'
 import DatePicker from './DatePicker.jsx'
+import { MAX_DESCRIPTION_LENGTH, descriptionError } from './assistantRules.js'
 import { MAX_COMMENT_LENGTH, detailsError, withoutTaken } from './bookingRules.js'
 import {
   BOOKING_WINDOW_DAYS,
@@ -39,6 +40,18 @@ const DETAILS_QUESTION =
 function slotLabel(slot) {
   return `${formatDate(slot.date)} ${formatRange(slot)}`
 }
+
+// "Mon Nov 2 9:00 AM – 12:00 PM, Tue Nov 3 ... and 6 more"
+function rangesText(ranges) {
+  const shown = ranges.slice(0, 4).map(slotLabel).join(', ')
+  const more = ranges.length - 4
+  return more > 0 ? `${shown} and ${more} more` : shown
+}
+
+const CANT_DESCRIBE =
+  "Sorry, I couldn't read that just now. Please pick your dates on the calendar instead."
+const NOTHING_FOUND =
+  "Sorry, I couldn't tell when you're free from that. Try something like 'weekday mornings', or pick dates on the calendar."
 
 function matchesText(matches, what) {
   return matches.length === 1
@@ -224,6 +237,45 @@ function CommentForm({ onSubmit }) {
   )
 }
 
+// The customer's own words instead of the calendar, read by the AI assistant.
+function DescribeForm({ onSubmit }) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    const message = descriptionError(text)
+    if (message) {
+      setError(message)
+      return
+    }
+    onSubmit(text.trim())
+  }
+
+  return (
+    <form className="card" onSubmit={handleSubmit} noValidate aria-label="Describe when you're free">
+      <label className="field">
+        Or tell me when you're free
+        <input
+          type="text"
+          value={text}
+          maxLength={MAX_DESCRIPTION_LENGTH}
+          onChange={(e) => setText(e.target.value)}
+        />
+      </label>
+      <p className="hint">For example: weekday mornings, but not Wednesday</p>
+      {error && (
+        <p className="error" role="alert">
+          {error}
+        </p>
+      )}
+      <button type="submit" className="button primary">
+        Find times
+      </button>
+    </form>
+  )
+}
+
 function DetailsForm({ onSubmit }) {
   const [name, setName] = useState('')
   const [contact, setContact] = useState('')
@@ -271,8 +323,10 @@ function DetailsForm({ onSubmit }) {
 // suggested. With `onBook`, the chat saves the booking: it asks for the
 // customer's details, then calls onBook({ service, slots, name, contact,
 // comments }), which resolves to { ok, message }. Without it, the chat ends
-// as a demo.
-function CustomerPage({ business, taken = [], onBook = null }) {
+// as a demo. With `onDescribe`, customers can also say when they're free in
+// their own words: onDescribe(text, { firstDate, days }) resolves to
+// { ok, message, ranges }, the times they're free on those dates.
+function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }) {
   const {
     hours: businessHours,
     offerAppointments = true,
@@ -348,7 +402,31 @@ function CustomerPage({ business, taken = [], onBook = null }) {
       say({ from: 'bot', text: `And on ${formatDate(dates[dateIndex + 1])}?` })
       return
     }
+    finishTimes(updated)
+  }
 
+  async function describeTimes(text) {
+    say({ from: 'user', text })
+    setStep('reading')
+    let result
+    try {
+      result = await onDescribe(text, { firstDate: calendarStart, days: calendarDays })
+    } catch {
+      result = { ok: false, message: CANT_DESCRIBE }
+    }
+    if (!result.ok || result.ranges.length === 0) {
+      say({ from: 'bot', text: result.ok ? NOTHING_FOUND : result.message })
+      setStep('dates')
+      return
+    }
+    setCustomerHours(result.ranges)
+    say({ from: 'bot', text: `Got it. You're free ${rangesText(result.ranges)}.` })
+    finishTimes(result.ranges)
+  }
+
+  // All of the customer's times are in (`updated`): suggest slots, or for a
+  // paired booking's drop-off, go on to ask about the pickup.
+  function finishTimes(updated) {
     // Paired booking: drop-off availability is done; now ask for the pickup's.
     if (service === PAIRED_SERVICE && !dropOffHours) {
       setDropOffHours(updated)
@@ -571,8 +649,11 @@ function CustomerPage({ business, taken = [], onBook = null }) {
             >
               Next
             </button>
+            {onDescribe && <DescribeForm key={messages.length} onSubmit={describeTimes} />}
           </>
         )}
+
+        {step === 'reading' && <p className="note">Reading your times…</p>}
 
         {step === 'times' && (
           <TimeRangeForm
@@ -617,7 +698,7 @@ function CustomerPage({ business, taken = [], onBook = null }) {
 
         {step === 'saving' && <p className="note">Booking…</p>}
 
-        {messages.length > 1 && step !== 'saving' && (
+        {messages.length > 1 && step !== 'saving' && step !== 'reading' && (
           <button type="button" className="button link" onClick={restart}>
             Start over
           </button>
