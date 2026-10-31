@@ -84,7 +84,7 @@ describe('Customer page: saved bookings', () => {
     const onBook = vi.fn().mockResolvedValue({ ok: false, message: 'Sorry, someone just booked that time.' })
     askForTimes({ onBook })
     click('Mon Oct 19 9:00 AM – 9:30 AM')
-    click('Skip')
+    click('No')
     fillDetails('Sam', '202-555-0123')
     expect(
       await screen.findByText('Sorry, someone just booked that time. Tap Start over to choose another time.'),
@@ -96,7 +96,7 @@ describe('Customer page: saved bookings', () => {
   it('explains when the booking could not be sent', async () => {
     askForTimes({ onBook: vi.fn().mockRejectedValue(new Error('offline')) })
     click('Mon Oct 19 9:00 AM – 9:30 AM')
-    click('Skip')
+    click('No')
     fillDetails('Sam', 'sam@example.com')
     expect(await screen.findByText(/something went wrong and your time wasn't booked/)).toBeInTheDocument()
   })
@@ -127,7 +127,7 @@ describe('Customer page: describing free times', () => {
     click('Appointment')
     expect(screen.getByText('To book an appointment, answer either question below.')).toBeInTheDocument()
     const usual = screen.getByText('What days are you usually free?')
-    const specific = screen.getByText("Are there any specific dates you'd like to schedule?")
+    const specific = screen.getByText("Or are there any specific dates you'd like to schedule?")
     // Usual days come first, then the calendar.
     expect(usual.compareDocumentPosition(specific) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(

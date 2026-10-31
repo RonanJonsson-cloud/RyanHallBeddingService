@@ -160,7 +160,7 @@ describe('Cloud app: customer', () => {
     click('Next')
     click('Send')
     click('Mon Oct 19 9:30 AM – 10:00 AM')
-    click('Skip')
+    click('No')
     fireEvent.change(screen.getByLabelText('Your name'), { target: { value: 'Sam' } })
     fireEvent.change(screen.getByLabelText('Email or phone'), { target: { value: 'sam@example.com' } })
     click('Book')

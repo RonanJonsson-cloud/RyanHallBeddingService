@@ -69,7 +69,7 @@ const SERVICE_NAMES = {
 // With the AI assistant, the dates step asks two questions, and the
 // customer answers either one.
 const USUAL_DAYS_QUESTION = 'What days are you usually free?'
-const DATES_QUESTION = "Are there any specific dates you'd like to schedule?"
+const DATES_QUESTION = "Or are there any specific dates you'd like to schedule?"
 const EITHER_QUESTION = 'Answer either question below.'
 
 // "To book a pickup, please select available dates."
@@ -507,7 +507,7 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
   }
 
   function answerComments(wantsToComment) {
-    say({ from: 'user', text: wantsToComment ? 'Yes' : 'Skip' })
+    say({ from: 'user', text: wantsToComment ? 'Yes' : 'No' })
     if (wantsToComment) {
       say({ from: 'bot', text: 'What would you like the business to know?' })
       setStep('comment')
@@ -698,7 +698,7 @@ function CustomerPage({ business, taken = [], onBook = null, onDescribe = null }
               Yes
             </button>
             <button type="button" className="button" onClick={() => answerComments(false)}>
-              Skip
+              No
             </button>
           </div>
         )}
