@@ -82,7 +82,9 @@ ${dates.map(({ date, weekday }) => `${date} (${weekday})`).join('\n')}
 
 Rules:
 - Use 24-hour HH:MM times. "Morning" means 08:00-12:00, "afternoon" 12:00-17:00, "evening" 17:00-21:00, and "any time" or "all day" 00:00-23:59.
+- "Weekdays" means Monday, Tuesday, Wednesday, Thursday and Friday. "Weekends" means Saturday and Sunday.
 - A weekday on its own ("Mondays") means every listed date on that weekday. "Next Monday" or "this Friday" means just the one date.
+- Check every listed date against the description before answering, so no matching date is missed.
 - Leave out any time or date they say they are busy, splitting a day into several ranges if needed.
 - If they don't say which days, use every listed date. If they don't say which times, use 00:00-23:59.
 - If the message doesn't describe when they are free, return no ranges.

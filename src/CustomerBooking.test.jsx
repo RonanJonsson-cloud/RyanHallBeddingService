@@ -111,14 +111,14 @@ describe('Customer page: describing free times', () => {
   function describeTimes(onDescribe, text = 'Monday mornings') {
     render(<CustomerPage business={business} onDescribe={onDescribe} />)
     click('Appointment')
-    fireEvent.change(screen.getByLabelText("Or tell me when you're free"), { target: { value: text } })
+    fireEvent.change(screen.getByLabelText("Or tell us when you're free"), { target: { value: text } })
     click('Find times')
   }
 
   it('only offers the box when an assistant is available', () => {
     render(<CustomerPage business={business} />)
     click('Appointment')
-    expect(screen.queryByLabelText("Or tell me when you're free")).not.toBeInTheDocument()
+    expect(screen.queryByLabelText("Or tell us when you're free")).not.toBeInTheDocument()
   })
 
   it("suggests times from the customer's own words", async () => {
@@ -150,7 +150,7 @@ describe('Customer page: describing free times', () => {
   it('checks the description before sending it', () => {
     const onDescribe = vi.fn()
     describeTimes(onDescribe, '   ')
-    expect(screen.getByRole('alert')).toHaveTextContent('Please tell me when you are free.')
+    expect(screen.getByRole('alert')).toHaveTextContent('Please tell us when you are free.')
     expect(onDescribe).not.toHaveBeenCalled()
   })
 
@@ -167,10 +167,10 @@ describe('Customer page: describing free times', () => {
       .mockResolvedValueOnce({ ok: true, message: '', ranges: [{ date: '2026-10-19', start: '09:00', end: '10:00', breaks: [] }] })
       .mockResolvedValueOnce({ ok: true, message: '', ranges: [{ date: '2026-10-19', start: '15:00', end: '16:00', breaks: [] }] })
     render(<CustomerPage business={paired} onDescribe={onDescribe} />)
-    fireEvent.change(screen.getByLabelText("Or tell me when you're free"), { target: { value: 'Monday 9 to 10' } })
+    fireEvent.change(screen.getByLabelText("Or tell us when you're free"), { target: { value: 'Monday 9 to 10' } })
     click('Find times')
     expect(await screen.findByText(/Now select available dates for your pickup/)).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText("Or tell me when you're free"), { target: { value: 'Monday 3 to 4' } })
+    fireEvent.change(screen.getByLabelText("Or tell us when you're free"), { target: { value: 'Monday 3 to 4' } })
     click('Find times')
     expect(await screen.findByText(/First, your drop-off/)).toBeInTheDocument()
     click('Mon Oct 19 9:00 AM – 9:05 AM')

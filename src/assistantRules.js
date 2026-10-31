@@ -28,7 +28,7 @@ export function datesFrom(firstDate, days) {
 // Returns an error message, or '' if the description can be sent.
 export function descriptionError(text) {
   const trimmed = typeof text === 'string' ? text.trim() : ''
-  if (!trimmed) return 'Please tell me when you are free.'
+  if (!trimmed) return 'Please tell us when you are free.'
   if (trimmed.length > MAX_DESCRIPTION_LENGTH) {
     return `Please keep it under ${MAX_DESCRIPTION_LENGTH} characters.`
   }

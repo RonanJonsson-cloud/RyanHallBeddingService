@@ -14,8 +14,8 @@ describe('datesFrom', () => {
 describe('descriptionError', () => {
   it('needs some text, but not too much', () => {
     expect(descriptionError('weekday mornings')).toBe('')
-    expect(descriptionError('   ')).toBe('Please tell me when you are free.')
-    expect(descriptionError(null)).toBe('Please tell me when you are free.')
+    expect(descriptionError('   ')).toBe('Please tell us when you are free.')
+    expect(descriptionError(null)).toBe('Please tell us when you are free.')
     expect(descriptionError('x'.repeat(MAX_DESCRIPTION_LENGTH + 1))).toMatch(/under 300 characters/)
   })
 })

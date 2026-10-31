@@ -255,7 +255,7 @@ function DescribeForm({ onSubmit }) {
   return (
     <form className="card" onSubmit={handleSubmit} noValidate aria-label="Describe when you're free">
       <label className="field">
-        Or tell me when you're free
+        Or tell us when you're free
         <input
           type="text"
           value={text}
